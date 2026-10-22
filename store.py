@@ -30,7 +30,7 @@ def _jsonable(x):
 
 
 class MemStore:
-    kind = "mémoire (sans base)"
+    kind = "memory"
 
     def __init__(self):
         self.reset()
@@ -88,7 +88,7 @@ class MemStore:
 
 
 class PgStore(MemStore):
-    kind = "Aiven for PostgreSQL"
+    kind = "pg"
 
     def __init__(self, url):
         self.url = url
@@ -203,8 +203,8 @@ class PgStore(MemStore):
 
     def supplier_memory_sql(self):
         """La mémoire fournisseur telle que calculée par la vue SQL (preuve que la donnée vit dans Aiven)."""
-        return self._q("""SELECT supplier_id, name, announced_lead_time_days AS annonce_j, real_lead_time_days AS reel_j,
-                          lead_time_stddev AS ecart_type_j, late_rate AS taux_retard, n_deliveries AS livraisons
+        return self._q("""SELECT supplier_id, name, announced_lead_time_days AS announced_days, real_lead_time_days AS actual_days,
+                          lead_time_stddev AS std_days, late_rate, n_deliveries AS deliveries
                           FROM supplier_reliability ORDER BY late_rate DESC, real_lead_time_days DESC""")
 
 

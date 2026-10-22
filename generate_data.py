@@ -49,12 +49,12 @@ SUPPLIERS = [
   ("SUP-COF", "Coffrets Prestige",  "coffret", 35,  3000, 1.35, 44, 6),   # dérive modérée
 ]
 COMPONENTS = [
-  ("CMP-FLA-30", "Flacon verre 30 ml",   "flacon",  "SUP-FLA", None),
-  ("CMP-FLA-50", "Pot verre 50 ml",      "flacon",  "SUP-FLA", None),
-  ("CMP-POM-01", "Pompe airless 30 ml",  "pompe",   "SUP-POM", "SUP-POM-B"),
-  ("CMP-ETU-01", "Étui carton sérum",    "etui",    "SUP-ETU", None),
-  ("CMP-ETU-02", "Étui carton crème",    "etui",    "SUP-ETU", None),
-  ("CMP-COF-NOEL","Coffret Noël 2026",   "coffret", "SUP-COF", None),
+  ("CMP-FLA-30", "30 ml glass bottle",      "flacon",  "SUP-FLA", None),
+  ("CMP-FLA-50", "50 ml glass jar",         "flacon",  "SUP-FLA", None),
+  ("CMP-POM-01", "30 ml airless pump",      "pompe",   "SUP-POM", "SUP-POM-B"),
+  ("CMP-ETU-01", "Serum folding carton",    "etui",    "SUP-ETU", None),
+  ("CMP-ETU-02", "Cream folding carton",    "etui",    "SUP-ETU", None),
+  ("CMP-COF-NOEL","Christmas 2026 gift box", "coffret", "SUP-COF", None),
 ]
 PRODUCTS = [
   # id, name, family, price, margin, is_launch, base weekly demand, bom
@@ -69,7 +69,7 @@ PRODUCTS = [
   ("PRD-COF-NOEL","Coffret Rituel Noël",    "coffret",89.0, 0.62, True,  0,
      {"CMP-FLA-30":1, "CMP-POM-01":1, "CMP-FLA-50":1, "CMP-COF-NOEL":1}),
 ]
-CHANNELS = {"eshop":0.35, "distributeur_selectif":0.45, "pharmacie":0.20}
+CHANNELS = {"eshop":0.35, "selective_retail":0.45, "pharmacy":0.20}
 SUBCONTRACTORS = [("FAC-01", "Laboratoire Val de Loire", 9000), ("FAC-02", "Cosmétiques Normandie", 3000)]
 
 # Demande prévue du coffret : rampe avant/pendant Noël
@@ -187,7 +187,7 @@ for i, (pid, mult, wk_from, n_wk) in enumerate([("PRD-SER-ECL", 1.4, 6, 4), ("PR
     for k in range(n_wk):
         w = SIM_TODAY + timedelta(weeks=wk_from + k)
         demand_mult[(pid, w)] = demand_mult.get((pid, w), 1.0) * mult
-    e = ev(2 + i * 5, "sellout_spike", {"product_id": pid, "channel": "distributeur_selectif",
+    e = ev(2 + i * 5, "sellout_spike", {"product_id": pid, "channel": "selective_retail",
            "observed_vs_forecast": round(mult, 2),
            "weeks_affected": [(SIM_TODAY + timedelta(weeks=wk_from + k)).isoformat() for k in range(n_wk)]})
     DISRUPTIONS.append(e)
@@ -206,8 +206,8 @@ for i, cid in enumerate(["CMP-FLA-50", "CMP-ETU-02", "CMP-POM-01", "CMP-FLA-30"]
     DISRUPTIONS.append(e)
 # bruit : événements sans impact
 for i in range(15):
-    ev(rng.randint(0, 50), "noise", {"note": rng.choice(["changement d'interlocuteur fournisseur",
-        "mise à jour fiche article", "relance qualité", "inventaire tournant OK", "visite façonnier"])}, disruption=False)
+    ev(rng.randint(0, 50), "noise", {"note": rng.choice(["new supplier contact",
+        "item master update", "quality follow-up", "cycle count OK", "contract manufacturer visit"])}, disruption=False)
 events.sort(key=lambda e: e["ts"])
 
 # ---------------- Vérité terrain : projection avec réalité ----------------

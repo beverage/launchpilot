@@ -70,11 +70,11 @@ def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_s
         if mode == "learned":
             m = mem[p["supplier_id"]]
             p["arrival"] = _d(p["order_date"]) + timedelta(days=lead_time(p["supplier_id"], m["announced"]))
-            p["evidence"].append(f"supplier_reliability:{p['supplier_id']} (annoncé {m['announced']} j, réel {m['real_mean']} ± {m['std']} j sur {m['n']} livraisons, délai retenu {m['typical']} j)")
+            p["evidence"].append(f"supplier_reliability:{p['supplier_id']} (announced {m['announced']} d, actual {m['real_mean']} ± {m['std']} d over {m['n']} deliveries, lead time used {m['typical']} d)")
     for i, x in enumerate(extra_pos or []):
         open_pos[f"SIM-{i}"] = {"po_id": f"SIM-{i}", "component_id": x["component_id"], "qty": x["qty"],
                                 "qty_eff": int(x["qty"]), "arrival": x["arrival"], "supplier_id": x.get("supplier_id", ""),
-                                "evidence": [f"simulation:{x.get('label', 'commande simulée')}"]}
+                                "evidence": [f"simulation:{x.get('label', 'simulated order')}"]}
     demand_mult = {}
     for pid, f in (demand_scale or {}).items():
         for w in weeks or []:
@@ -96,7 +96,7 @@ def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_s
             p = open_pos[pl["po_id"]]
             p["qty_eff"] = int(pl["confirmed_qty"])
             if p["qty_eff"] < int(p["qty"]):
-                p["evidence"].append(f"events:{e['event_id']} (livraison partielle {p['qty_eff']}/{p['qty']})")
+                p["evidence"].append(f"events:{e['event_id']} (partial delivery {p['qty_eff']}/{p['qty']})")
     return open_pos, demand_mult
 
 def _run(weeks, stock, bom, fc, open_pos, demand_mult):

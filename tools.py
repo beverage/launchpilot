@@ -104,7 +104,7 @@ def _avg_price(pids):
 
 
 def unserved_units(component_id, series):
-    """Ventes perdues (pas de report) : le stock ne descend jamais sous 0, la demande non servie est perdue."""
+    """Lost sales (no backorders): stock never goes below 0, unserved demand is lost."""
     stock0 = next(int(r["qty"]) for r in DB["inventory"] if r["item_id"] == component_id)
     prev_b, level, lost = stock0, stock0, 0
     for _, b in series:
@@ -128,42 +128,42 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
            "cost_eur": 0.0, "lost_revenue_eur": 0.0, "stock_value_eur": 0.0, "evidence_rows": ev}
 
     if kind == "do_nothing":
-        res.update(label="Ne rien faire", lost_revenue_eur=round(shortage * avg_price),
-                   detail=f"{shortage} unités non servies valorisées au prix moyen {avg_price:.0f} €")
+        res.update(label="Do nothing", lost_revenue_eur=round(shortage * avg_price),
+                   detail=f"{shortage} units not served, valued at the average price of {avg_price:.0f} €")
     elif kind in ("order_main_supplier", "order_alt_supplier"):
         sid = COMP[component_id]["main_supplier_id"] if kind == "order_main_supplier" else COMP[component_id]["alt_supplier_id"]
         if not sid:
-            return {"error": "pas de fournisseur alternatif pour ce composant"}
+            return {"error": "no alternative supplier for this component"}
         s, m = SUP[sid], MEM[sid]
         q = int(qty or max(shortage, int(s["moq"])))
         q = max(q, int(s["moq"]))
         arrival = now + timedelta(days=m["typical"])
         sim = project(DB, events_seen, "learned", extra_pos=[{"component_id": component_id, "qty": q, "arrival": arrival,
-                                                             "supplier_id": sid, "label": f"commande urgente {s['name']}"}])[component_id]
+                                                             "supplier_id": sid, "label": f"rush order from {s['name']}"}])[component_id]
         left = unserved_units(component_id, sim["series"])
         purchase = q * float(s["unit_cost_eur"])
         main_cost = float(SUP[COMP[component_id]["main_supplier_id"]]["unit_cost_eur"])
         cost = q * max(0.0, float(s["unit_cost_eur"]) - main_cost)   # surcoût vs fournisseur habituel
         nxt_neg = next((w for w, b in base["series"] if b < 0 and _d(w) >= monday(arrival)), None)
         margin = max(0, (_d(nxt_neg) - arrival).days) if nxt_neg else None   # 0 = la commande arrive la semaine même où le stock casse
-        res.update(label=f"Commande urgente chez {s['name']}", supplier_id=sid, qty=q, safety_margin_days=margin,
+        res.update(label=f"Rush order from {s['name']}", supplier_id=sid, qty=q, safety_margin_days=margin,
                    arrival_realistic=arrival.isoformat(), announced_arrival=(now + timedelta(days=m["announced"])).isoformat(),
                    cost_eur=round(cost), stock_value_eur=round(purchase), lost_revenue_eur=round(left * avg_price),
                    shortage_units_after=left, new_stockout_week=sim["stockout_week"],
-                   detail=f"{q} u. × {float(s['unit_cost_eur']):.2f} € (MOQ {s['moq']}), arrivée réaliste {arrival} (délai retenu {m['typical']} j = médiane réelle, annoncé {m['announced']} j)"
-                          + (f", marge avant la rupture suivante : {margin} j" if margin is not None else "")
-                          + f". Ne couvre pas le trou de {left} unités avant l'arrivée." * (left > 0))
+                   detail=f"{q} units × {float(s['unit_cost_eur']):.2f} € (MOQ {s['moq']}), realistic arrival {arrival} (lead time used {m['typical']} d = median actual, announced {m['announced']} d)"
+                          + (f", safety margin before the next stockout: {margin} d" if margin is not None else "")
+                          + f". Does not cover the gap of {left} units before it arrives." * (left > 0))
         res["evidence_rows"].append(f"supplier_reliability:{sid}")
     elif kind == "prioritize_launch":
         others = [p for p in cons if p != LAUNCH_PRODUCT]
         if LAUNCH_PRODUCT not in cons or not others:
-            return {"error": "le composant n'est pas partagé avec le produit lancé"}
+            return {"error": "the component is not shared with the launch product"}
         p_other = _avg_price(others)
         cap = sum(_window_demand(p) for p in others)
         lost_units = min(shortage, cap)
-        res.update(label="Allouer en priorité au coffret de lancement", lost_revenue_eur=round(lost_units * p_other),
-                   detail=f"Les {shortage} unités manquantes sont prises sur {', '.join(PROD[p]['name'] for p in others)} "
-                          f"(prix moyen {p_other:.0f} €) au lieu du coffret (89 €). Le lancement est protégé.")
+        res.update(label="Prioritise the launch gift set", lost_revenue_eur=round(lost_units * p_other),
+                   detail=f"The {shortage} missing units are taken from {', '.join(PROD[p]['name'] for p in others)} "
+                          f"(average price {p_other:.0f} €) instead of the gift set ({float(PROD[LAUNCH_PRODUCT]['price_eur']):.0f} €). The launch is protected.")
     elif kind == "order_alt_and_prioritize":
         o = cost_scenario(events_seen, now, component_id, "order_alt_supplier", qty)
         if "error" in o:
@@ -171,11 +171,11 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
         others = [p for p in cons if p != LAUNCH_PRODUCT]
         p_other = _avg_price(others) if others else avg_price
         left = o["shortage_units_after"]
-        res.update(label=f"Commande urgente {SUP[o['supplier_id']]['name']} + coffret prioritaire en attendant",
+        res.update(label=f"Rush order from {SUP[o['supplier_id']]['name']} + gift set first meanwhile",
                    supplier_id=o["supplier_id"], qty=o["qty"], cost_eur=o["cost_eur"], stock_value_eur=o["stock_value_eur"],
                    lost_revenue_eur=round(left * p_other), shortage_units_after=left, safety_margin_days=o.get("safety_margin_days"),
-                   detail=f"La commande (arrivée réaliste {o['arrival_realistic']}) sécurise décembre. Le trou de {left} unités "
-                          f"avant son arrivée est pris sur les sérums ({p_other:.0f} €) : le coffret sort à l'heure.")
+                   detail=f"The order (realistic arrival {o['arrival_realistic']}) secures December. The gap of {left} units "
+                          f"before it arrives is taken from the serums ({p_other:.0f} €): the gift set ships on time.")
         res["evidence_rows"] = o["evidence_rows"]
     elif kind == "reduce_launch":
         pct = float(reduction_pct or 20) / 100
@@ -183,11 +183,11 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
         left = unserved_units(component_id, sim["series"])
         launch_units = _window_demand(LAUNCH_PRODUCT) * pct
         price_launch = float(PROD[LAUNCH_PRODUCT]["price_eur"])
-        res.update(label=f"Réduire le lancement de {int(pct*100)} %",
+        res.update(label=f"Scale the launch down by {int(pct*100)}%",
                    lost_revenue_eur=round(launch_units * price_launch + left * avg_price),
                    shortage_units_after=left, new_stockout_week=sim["stockout_week"],
-                   detail=f"{int(launch_units)} coffrets en moins ({price_launch:.0f} €), reste {left} unités manquantes")
+                   detail=f"{int(launch_units)} fewer gift sets ({price_launch:.0f} €), {left} units still missing")
     else:
-        return {"error": f"type de scénario inconnu : {kind}"}
+        return {"error": f"unknown scenario kind: {kind}"}
     res["total_impact_eur"] = round(res["cost_eur"] + res["lost_revenue_eur"])
     return res

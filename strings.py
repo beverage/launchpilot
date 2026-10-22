@@ -1,0 +1,68 @@
+"""User-facing strings for the LaunchPilot UI.
+
+English today. A second language is a second dict with the same keys and a selector in app.py;
+the agents take their language from the prompts in agents.py.
+"""
+EN = {
+    "title": "🚀 LaunchPilot",
+    "tagline": "**The copilot that sees a launch stockout coming before it happens.** "
+               "Demo: Claire, supply manager at *Maison Aurore* (a fictional cosmetics brand), is preparing her Christmas gift set.",
+    "hdr_data": "Data", "hdr_agents": "Agents", "hdr_dataset": "Dataset", "dataset_value": "synthetic, recorded scenario",
+    "agents_live": "Claude live ({model})", "agents_rules": "deterministic rules (no API key)",
+    "store_memory": "in memory (no database)", "store_pg": "Aiven for PostgreSQL",
+    "tab_launch": "Launch", "tab_memory": "Supplier memory", "tab_proof": "Proof", "tab_traces": "Agent traces",
+    "sim_date": "Simulated date", "events_processed": "Events processed", "critical_alerts": "Critical alerts",
+    "revenue_at_risk": "Revenue at risk (most critical component)",
+    "toggle_live": "Live Claude agent", "toggle_help": "Without an API key the watch agent runs its rules version.",
+    "next_event": "▶️ Next event", "fast_forward": "⏩ Fast-forward to the partial delivery (EV-019)", "reset": "↺ Reset",
+    "spinner_watch": "The watch agent is analysing {event}…",
+    "components_title": "Gift-set components",
+    "col_component": "Component", "col_supplier": "Supplier", "col_without_memory": "Without memory (announced lead times)",
+    "col_launchpilot": "LaunchPilot (median week)", "col_p_launch": "P(stockout ≤ launch + 1 wk)", "col_status": "Status",
+    "covered": "🟢 Covered",
+    "projection_select": "Stock projection",
+    "legend_lp": "LaunchPilot (actual lead times, median)", "legend_nm": "Without memory (announced lead times)",
+    "y_axis": "Projected stock (units)", "launch_label": "Launch",
+    "chart_caption": "Blue band: 10th to 90th percentile of 200 draws where each lead time is taken from the supplier's delivered history. "
+                     "The grey line reads the same messages (promised dates, confirmed quantities, sell-out spikes) but believes the announced lead times.",
+    "feed_title": "Event feed", "feed_empty": "No events yet. Click “Next event”.",
+    "alerts_title": "Alerts", "alerts_empty": "No alerts.",
+    "alert_line": "{icon} **{label} — {component}** · stockout week of {week}",
+    "alert_source": "Source: {source} · triggered by {event} · confidence {confidence}",
+    "evidence": "Evidence (data rows)",
+    "propose": "💡 Propose solutions", "spinner_arb": "The arbitration agent is costing scenarios…",
+    "extra_cost": "Extra cost", "lost_revenue": "Lost revenue", "cash_tied": "Cash tied up in stock",
+    "choose": "Choose this scenario", "decision_logged": "Decision logged", "decided_by": "Claire (demo)",
+    "decisions_title": "Decision log",
+    "memory_title": "What suppliers announce vs what they actually deliver",
+    "memory_caption": "Memory learned from the delivery history. It is what makes the agent useful.",
+    "mem_supplier": "Supplier", "mem_days": "Lead time (days)", "mem_measure": "Measure",
+    "mem_announced": "Announced", "mem_actual": "Actual (mean)",
+    "memory_sql": "**Computed live by the SQL view `supplier_reliability` in Aiven for PostgreSQL:**",
+    "proof_title": "Does it work? Planner without memory vs LaunchPilot",
+    "proof_caption": "The baseline is honest: an attentive planner who reads every message (promised dates, confirmed quantities, sell-out spikes) "
+                     "but believes the announced lead times. LaunchPilot reads the same messages and adds the supplier memory. "
+                     "A stockout counts as “dated” when it is announced within one week of its true date at some point in the replay.",
+    "proof_dated_nm": "Stockouts dated — without memory", "proof_dated_lp": "Stockouts dated — LaunchPilot",
+    "proof_wrong": "Dates wrong by > 1 week — LaunchPilot", "proof_wrong_delta": "{delta:+d} vs without memory",
+    "proof_false": "False alarms — LaunchPilot",
+    "proof_seeds": "{seeds} synthetic worlds drawn with the same generator (recorded scenario, not live). "
+                   "Mean lead on dated stockouts: LaunchPilot {lead_lp} days, without memory {lead_nm} days "
+                   "(the baseline only dates the easy December stockouts, hence its lead).",
+    "proof_demo": "**The demo scenario (seed {seed})**",
+    "proof_col_truth": "True stockout", "proof_col_nm": "Without memory", "proof_col_lp": "LaunchPilot",
+    "proof_col_p": "P(stockout ≤ launch + 1 wk) at the end", "proof_days_ahead": "{days} days ahead", "proof_missed": "Missed",
+    "proof_missing": "Run `python3 evaluate.py` to produce the results.",
+    "proof_limits": "Limits: synthetic data; contract-manufacturer capacity drops are not yet part of the projection engine.",
+    "traces_title": "What the agents did (and what it cost)",
+    "traces_runs": "Agent runs", "traces_live": "Of which Claude live", "traces_latency": "Mean latency (live)",
+    "traces_empty": "No runs yet.",
+    "traces_row": "{agent} · {mode} · {latency:.1f} s · {tin}+{tout} tokens",
+    "event_kind": {"supplier_delay": "🚚 Supplier delay", "sellout_spike": "📈 Sell-out spike",
+                   "capacity_drop": "🏭 Contract-manufacturer capacity", "po_confirmed": "✅ Order confirmation", "noise": "· Info"},
+    "severity": {"high": ("🔴", "Critical"), "medium": ("🟠", "Watch"), "low": ("🟢", "Low")},
+    "feed_delay": "{supplier} pushes {po} back by {days} d",
+    "feed_spike": "{product}: sales ×{factor}",
+    "feed_capacity": "{plant}: capacity −{pct}%",
+    "feed_confirmed": "{po} confirmed: {qty} units",
+}
