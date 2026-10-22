@@ -1,0 +1,7 @@
+component_id,name,category,main_supplier_id,alt_supplier_id
+CMP-FLA-30,Flacon verre 30 ml,flacon,SUP-FLA,
+CMP-FLA-50,Pot verre 50 ml,flacon,SUP-FLA,
+CMP-POM-01,Pompe airless 30 ml,pompe,SUP-POM,SUP-POM-B
+CMP-ETU-01,Étui carton sérum,etui,SUP-ETU,
+CMP-ETU-02,Étui carton crème,etui,SUP-ETU,
+CMP-COF-NOEL,Coffret Noël 2026,coffret,SUP-COF,

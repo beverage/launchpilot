@@ -1,0 +1,12 @@
+snapshot_date,item_id,item_type,qty
+2026-09-07,CMP-FLA-30,component,32000
+2026-09-07,CMP-FLA-50,component,26000
+2026-09-07,CMP-POM-01,component,11000
+2026-09-07,CMP-ETU-01,component,24000
+2026-09-07,CMP-ETU-02,component,22000
+2026-09-07,CMP-COF-NOEL,component,0
+2026-09-07,PRD-SER-ECL,product,2250
+2026-09-07,PRD-SER-NUI,product,1500
+2026-09-07,PRD-CRE-HYD,product,2750
+2026-09-07,PRD-CRE-RIC,product,1250
+2026-09-07,PRD-COF-NOEL,product,0

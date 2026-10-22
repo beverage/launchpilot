@@ -1,0 +1,6 @@
+product_id,name,family,price_eur,margin_rate,is_launch,launch_week
+PRD-SER-ECL,Sérum Éclat 30 ml,soin,49.0,0.68,False,
+PRD-SER-NUI,Sérum Nuit 30 ml,soin,55.0,0.7,False,
+PRD-CRE-HYD,Crème Hydra 50 ml,soin,42.0,0.65,False,
+PRD-CRE-RIC,Crème Riche 50 ml,soin,46.0,0.66,False,
+PRD-COF-NOEL,Coffret Rituel Noël,coffret,89.0,0.62,True,45

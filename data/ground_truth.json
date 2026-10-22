@@ -1,0 +1,61 @@
+{
+  "sim_today": "2026-09-07",
+  "launch_week": "2026-11-02",
+  "window_end": "2026-12-28",
+  "true_stockouts": {
+    "CMP-FLA-30": "2026-12-21",
+    "CMP-FLA-50": "2026-12-14",
+    "CMP-POM-01": "2026-11-09",
+    "CMP-ETU-01": null,
+    "CMP-ETU-02": null,
+    "CMP-COF-NOEL": "2026-12-14"
+  },
+  "naive_view_stockouts": {
+    "CMP-FLA-30": null,
+    "CMP-FLA-50": "2026-12-21",
+    "CMP-POM-01": null,
+    "CMP-ETU-01": null,
+    "CMP-ETU-02": null,
+    "CMP-COF-NOEL": null
+  },
+  "disruption_event_ids": [
+    "EV-001",
+    "EV-002",
+    "EV-003",
+    "EV-004",
+    "EV-005",
+    "EV-006",
+    "EV-007",
+    "EV-008",
+    "EV-009",
+    "EV-010",
+    "EV-011",
+    "EV-012",
+    "EV-013",
+    "EV-014",
+    "EV-015",
+    "EV-016",
+    "EV-017",
+    "EV-018",
+    "EV-019",
+    "EV-020"
+  ],
+  "noise_event_ids": [
+    "EV-032",
+    "EV-029",
+    "EV-033",
+    "EV-025",
+    "EV-030",
+    "EV-028",
+    "EV-035",
+    "EV-034",
+    "EV-022",
+    "EV-023",
+    "EV-027",
+    "EV-031",
+    "EV-026",
+    "EV-021",
+    "EV-024"
+  ],
+  "notes": "true_stockouts = ce qui arrive vraiment (délais réels, pics, livraisons partielles). naive_view_stockouts = ce que voit une règle qui croit les dates promises et la prévision v1."
+}

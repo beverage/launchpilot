@@ -1,0 +1,6 @@
+supplier_id,name,category,announced_lead_time_days,moq,unit_cost_eur
+SUP-FLA,Verrerie Lumière,flacon,42,10000,0.42
+SUP-POM,Pompes Atlas,pompe,42,20000,0.18
+SUP-POM-B,Dosage Riviera,pompe,49,5000,0.26
+SUP-ETU,Cartonnages de Seine,etui,28,5000,0.09
+SUP-COF,Coffrets Prestige,coffret,35,3000,1.35
