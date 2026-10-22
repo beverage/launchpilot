@@ -43,7 +43,7 @@ PAST = weeks(SIM_TODAY - timedelta(weeks=HISTORY_WEEKS), HISTORY_WEEKS)
 SUPPLIERS = [
   # id, name, category, announced, moq, cost, real_mu, real_sd
   ("SUP-FLA", "Verrerie Lumière",   "flacon",  42, 10000, 0.42, 45, 4),
-  ("SUP-POM", "Pompes Atlas",       "pompe",   42, 20000, 0.18, 61, 7),   # la star : annonce 6 sem., livre ~8,7
+  ("SUP-POM", "Pompes Atlas",       "pompe",   42,  6000, 0.18, 61, 7),   # la star : annonce 6 sem., livre ~8,7 (MOQ lowered 22 Oct, see DECISIONS.md)
   ("SUP-POM-B","Dosage Riviera",    "pompe",   49,  5000, 0.26, 50, 3),   # alternative fiable mais plus chère
   ("SUP-ETU", "Cartonnages de Seine","etui",   28,  5000, 0.09, 29, 3),
   ("SUP-COF", "Coffrets Prestige",  "coffret", 35,  3000, 1.35, 44, 6),   # dérive modérée
@@ -137,13 +137,14 @@ for sid, _, cat, ann, moq, *_ in SUPPLIERS:
 
 # Rebalance delivered quantities so the purchase history matches 78 weeks of consumption plus the stock on hand, with an
 # opening stock of a few weeks. Quantities only, after every random draw: lead times (the memory) and the proof do not move.
-# Pumps and the gift box are left as generated (see docs/EVALUATION.md, section 8).
+# A backup supplier's deliveries stay at its own MOQ; the main supplier's take the remainder. The gift box is left as
+# generated (see docs/EVALUATION.md, section 8).
 _bom_hist = {pr[0]: pr[7] for pr in PRODUCTS}
 _consumed = {}
 for w, pid, ch, q in sales:
     for cid, per in _bom_hist[pid].items():
         _consumed[cid] = _consumed.get(cid, 0) + q * per
-_stock_now = {"CMP-FLA-30": 32000, "CMP-FLA-50": 26000, "CMP-ETU-01": 24000, "CMP-ETU-02": 22000}
+_stock_now = {"CMP-FLA-30": 32000, "CMP-FLA-50": 26000, "CMP-POM-01": 11000, "CMP-ETU-01": 24000, "CMP-ETU-02": 22000}
 OPENING_WEEKS = 5
 for cid, stock_now in _stock_now.items():
     hist = [p_ for p_ in pos if p_["component_id"] == cid and p_["status"] == "delivered"]
@@ -151,10 +152,16 @@ for cid, stock_now in _stock_now.items():
         continue
     weekly = _consumed.get(cid, 0) / HISTORY_WEEKS
     target = _consumed.get(cid, 0) + stock_now - OPENING_WEEKS * weekly
-    moq = sup[hist[0]["supplier_id"]][4]
-    base = max(moq, int(target // len(hist) // moq) * moq)            # floor to MOQ multiples: received never exceeds target
-    extra = int((target - base * len(hist)) // moq)                    # spread the remainder, one MOQ at a time, over the first orders
-    for i, p_ in enumerate(hist):
+    main_sid = comp_supplier[cid]
+    for p_ in hist:                                                    # backup supplier: one MOQ per delivery
+        if p_["supplier_id"] != main_sid:
+            p_["qty"] = sup[p_["supplier_id"]][4]
+            target -= p_["qty"]
+    main = [p_ for p_ in hist if p_["supplier_id"] == main_sid]
+    moq = sup[main_sid][4]
+    base = max(moq, int(target // len(main) // moq) * moq)            # floor to MOQ multiples: received never exceeds target
+    extra = int((target - base * len(main)) // moq)                    # spread the remainder, one MOQ at a time, over the first orders
+    for i, p_ in enumerate(main):
         p_["qty"] = base + (moq if i < extra else 0)
 
 # commandes ouvertes pour couvrir le lancement (dates promises OK, réalité parfois non)
