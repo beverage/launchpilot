@@ -15,7 +15,7 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 | A0 | Port the kit: history preserved, idempotent schema, reset that spares live events, committed `__pycache__` removed | App runs locally against Aiven PostgreSQL and the journey works | Must | Alex (kickoff session) | done, merged to main 10:41; journey verified against accel-pg with live Claude |
 | C0 | Deploy on Alex's Aiven Runtime from this repo | Public URL runs the journey | Must | streams side | done 10:47: https://01a162c8-8edd-75e2-a292-0b513a77405a-8080.eur-1.aiven.app (from `main`; redeploy with `scripts/runtime.py redeploy launchpilot`) |
 | A1 | Live Claude on the deployed app | Traces tab shows a live run with tool calls | Must | Alex (kickoff session) | done 10:58, live run on the Runtime URL (3.6 s, mark_noise tool call) |
-| A5 | Honest proof: fair baseline, timing metric, calibrated probability, proof tab and README updated | Proof tab shows the fair comparison; README numbers replaced | Must | app side | new, from the evaluation |
+| A5 | Honest proof: fair baseline, timing metric, calibrated probability, proof tab and README updated | Proof tab shows the fair comparison; README numbers replaced | Must | Alex (kickoff session) | doing 11:05, branch app/a5-honest-proof |
 | A2 | Free-text supplier email event | An email event in the stream produces a cited alert live | Must | app side (consumer), streams side (producer) | from the brief |
 | A3 | Memory that learns live (`po_delivered`) | Supplier memory tab changes during the demo | Must | same | from the brief |
 | B1 | English UI | No French on screen | Must | app side | from the brief |
