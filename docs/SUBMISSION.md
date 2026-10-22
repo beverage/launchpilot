@@ -71,6 +71,10 @@ One end-to-end journey on the deployed app, recorded after the freeze, once the 
 
 ## The pitch slide
 
+The slide: [pitch-slide.png](pitch-slide.png), public at https://raw.githubusercontent.com/beverage/launchpilot/main/docs/pitch-slide.png. Imène to confirm the first-users line (her network, the Cosmetic Valley figures from her brief).
+
+![LaunchPilot pitch slide](pitch-slide.png)
+
 The form says this slide is the only thing shown on stage, so it carries the whole story: who it is for (Claire, supply manager at an independent French cosmetics brand of 10 to 50 M€, below the size planning tools target), why now, how we reach the first users, a product screenshot (the critical pump alert), the data flow in one line (streams → Kafka → PostgreSQL → agents with tools → cited alert), and the proof number. Share it as "Anyone with the link can view" and test the link from a private window.
 
 ## Before submitting
