@@ -8,6 +8,8 @@
 
 In a coherent world the opening stock is positive and a few months of use at most. A
 negative opening stock means the history received more than it used and the surplus vanished.
+Components with deliveries but no stock row (past seasons' gift boxes) are listed too, so a gap
+that the snapshot does not cover stays visible.
 
 Usage:  python3 docs/evaluation/balance.py --data data
 Standard library only.
@@ -36,13 +38,18 @@ for r in rd("purchase_orders.csv"):
 inv = {r["item_id"]: (r["snapshot_date"], int(r["qty"])) for r in rd("inventory.csv") if r["item_type"] == "component"}
 
 print(f"Sales history {weeks[0]} to {weeks[-1]} ({len(weeks)} weeks); stock snapshot {next(iter(inv.values()))[0]}")
-print(f"{'component':13} {'received':>9} {'consumed':>9} {'stock':>7} {'opening':>9}  weeks of use at opening")
-for cid in sorted(inv):
+print(f"{'component':15} {'received':>9} {'consumed':>9} {'stock':>7} {'opening':>9}  weeks of use at opening")
+ids = [r["component_id"] for r in rd("components.csv")]
+for cid in ids + sorted((set(inv) | set(received) | set(consumed)) - set(ids)):
+    per_week = consumed[cid] / len(weeks)
+    if cid not in inv:
+        note = "no stock row" + ("; no sales in the history (past season, not modelled)" if not consumed[cid] else "")
+        print(f"{cid:15} {received[cid]:9d} {int(consumed[cid]):9d} {'-':>7} {'-':>9}  {note}")
+        continue
     stock = inv[cid][1]
     opening = stock - received[cid] + int(consumed[cid])
-    per_week = consumed[cid] / len(weeks)
     if opening < 0:
         cover = "impossible: negative"
     else:
         cover = f"{opening / per_week:.0f}" if per_week else "no use"
-    print(f"{cid:13} {received[cid]:9d} {int(consumed[cid]):9d} {stock:7d} {opening:9d}  {cover}")
+    print(f"{cid:15} {received[cid]:9d} {int(consumed[cid]):9d} {stock:7d} {opening:9d}  {cover}")
