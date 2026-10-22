@@ -27,6 +27,7 @@ streamlit run app.py
 ```
 
 The web frontend's API: `uvicorn api:app --reload --port 8000`, then open `http://localhost:8000/docs` for the endpoints. `CORS_ORIGINS` adds allowed origins beyond Lovable's domains and localhost.
+Deployed as the Runtime app `launchpilot-api`: https://01a16306-1a71-7b9c-b00e-c3385b8c913d-8080.eur-1.aiven.app (endpoints at `/docs`); the frontend is [beverage/launchpilot-web](https://github.com/beverage/launchpilot-web), deployed as `launchpilot-web`: https://01a16308-4e87-7399-b060-4a2d62e8c57c-8080.eur-1.aiven.app
 
 - With no configuration the app runs on in-memory data with rules-only agents, so the demo never breaks.
 - `DATABASE_URL` (an Aiven for PostgreSQL service URI): the app creates the tables and loads the data on first start; events, alerts, scenarios, decisions and agent traces live there.
