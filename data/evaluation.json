@@ -1,5 +1,5 @@
 {
-  "protocol": "Rejeu des 35 événements sur N mondes synthétiques ; une rupture est datée si elle est annoncée à ±1 semaine de sa vraie date ; baseline = planificateur attentif sans mémoire (lit chaque message, croit les délais annoncés) ; LaunchPilot = la même lecture plus la mémoire fournisseur (délais tirés dans l'historique réel livré ; annonce la semaine médiane quand la rupture est probable à 50 %).",
+  "protocol": "Replay of the 35 events over N synthetic worlds; a stockout is dated when it is announced within one week of its true date; baseline = attentive planner without memory (reads every message, believes announced lead times); LaunchPilot = the same reading plus the supplier memory (lead times drawn from delivered history; announces the median week when a stockout is at least 50% likely).",
   "seeds": 30,
   "recorded_not_live": true,
   "without_memory": {
@@ -80,7 +80,7 @@
   "demo_focus_pump_evidence": [
     "events:EV-001",
     "events:EV-002",
-    "events:EV-019 (livraison partielle 12000/20000)",
+    "events:EV-019 (partial delivery 12000/20000)",
     "events:sellout_spike PRD-COF-NOEL x1.25",
     "events:sellout_spike PRD-COF-NOEL x1.30",
     "events:sellout_spike PRD-COF-NOEL x1.62",
@@ -89,6 +89,6 @@
     "inventory:CMP-POM-01",
     "purchase_orders:PO-0063",
     "purchase_orders:PO-0064",
-    "supplier_reliability:SUP-POM (annoncé 42 j, réel 60.3 ± 7.1 j sur 14 livraisons, délai retenu 60 j)"
+    "supplier_reliability:SUP-POM (announced 42 d, actual 60.3 ± 7.1 d over 14 deliveries, lead time used 60 d)"
   ]
 }

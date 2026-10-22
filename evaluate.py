@@ -69,17 +69,17 @@ def main():
             errs = [e for e in r["errors_wk"].values() if e is not None]
             g["wrong"] += sum(1 for e in errs if abs(e) > 1) + sum(1 for e in r["errors_wk"].values() if e is None)
             g["abs_err"] += [abs(e) for e in errs]
-    report = {"protocol": "Rejeu des 35 événements sur N mondes synthétiques ; une rupture est datée si elle est annoncée à ±1 semaine de sa vraie date ; "
-                          "baseline = planificateur attentif sans mémoire (lit chaque message, croit les délais annoncés) ; "
-                          "LaunchPilot = la même lecture plus la mémoire fournisseur (délais tirés dans l'historique réel livré ; annonce la semaine médiane quand la rupture est probable à 50 %).",
+    report = {"protocol": "Replay of the 35 events over N synthetic worlds; a stockout is dated when it is announced within one week of its true date; "
+                          "baseline = attentive planner without memory (reads every message, believes announced lead times); "
+                          "LaunchPilot = the same reading plus the supplier memory (lead times drawn from delivered history; announces the median week when a stockout is at least 50% likely).",
               "seeds": a.seeds, "recorded_not_live": True}
     for k, g in agg.items():
         report[k] = {"detected": g["detected"], "total": g["total"],
                      "mean_lead_days": round(statistics.mean(g["lead"])) if g["lead"] else 0,
                      "false_alarms": g["false_alarms"], "wrong_by_more_than_1wk": g["wrong"],
                      "median_abs_error_weeks": round(statistics.median(g["abs_err"]), 1) if g["abs_err"] else None}
-        print(f"[{k:15}] datées {g['detected']}/{g['total']} | avance moyenne {report[k]['mean_lead_days']} j | "
-              f"dates fausses (> 1 sem) {g['wrong']} | fausses alertes {g['false_alarms']} | erreur médiane {report[k]['median_abs_error_weeks']} sem")
+        print(f"[{k:15}] dated {g['detected']}/{g['total']} | mean lead {report[k]['mean_lead_days']} d | "
+              f"wrong dates (> 1 wk) {g['wrong']} | false alarms {g['false_alarms']} | median error {report[k]['median_abs_error_weeks']} wk")
 
     # le scénario de la démo : le dossier data/ tel qu'il est commité
     db = load(a.data)
@@ -96,14 +96,14 @@ def main():
     report["demo_seed"] = {"seed": seed, "per_component": per}
     pump = project(db, db["events"], mode="learned")["CMP-POM-01"]
     report["demo_focus_pump_evidence"] = pump["evidence"]
-    print("\nScénario de la démo :")
+    print("\nDemo scenario:")
     for c, x in per.items():
         if x["truth"]:
-            print(f"  {c:13} vraie {x['truth']} | sans mémoire {str(x['without_memory']):10} ({x['lead_days_without_memory']} j avant) | "
-                  f"LaunchPilot {str(x['launchpilot']):10} ({x['lead_days_launchpilot']} j avant) | P(≤ lancement+1 sem) {x['p_by_launch_plus_1wk']:.0%}")
+            print(f"  {c:13} true {x['truth']} | without memory {str(x['without_memory']):10} ({x['lead_days_without_memory']} d ahead) | "
+                  f"LaunchPilot {str(x['launchpilot']):10} ({x['lead_days_launchpilot']} d ahead) | P(≤ launch+1 wk) {x['p_by_launch_plus_1wk']:.0%}")
     with open(os.path.join(a.data, "evaluation.json"), "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
-    print(f"\nRésultats écrits dans {os.path.join(a.data, 'evaluation.json')}")
+    print(f"\nResults written to {os.path.join(a.data, 'evaluation.json')}")
 
 
 if __name__ == "__main__":
