@@ -18,7 +18,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import date, datetime
 
 BODACC = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records"
 REGISTRY = "https://recherche-entreprises.api.gouv.fr/search"
@@ -93,6 +93,65 @@ def registry_activity(siren):
     return record.get("activite_principale") if record else None
 
 
+# BODACC notice families, in English for the front ends
+FAMILY_LABELS = {
+    "collective": "Insolvency proceedings",
+    "conciliation": "Conciliation",
+    "retablissement_professionnel": "Professional recovery",
+    "vente": "Business sale or transfer",
+    "radiation": "Deregistration",
+    "modification": "Company changes",
+    "dpc": "Accounts filed",
+    "immatriculation": "Registration",
+    "creation": "Creation",
+}
+
+
+def bodacc_history(siren, limit=40):
+    """The company's BODACC notices, newest first: date, family and link only. The free text
+    is left out because it names directors, administrators and addresses."""
+    data = get_json(BODACC, {"where": f'registre="{siren}"', "order_by": "dateparution desc", "limit": limit})
+    history = []
+    for r in data.get("results", []):
+        entry = {"date": r.get("dateparution"), "family": r.get("familleavis"),
+                 "label": FAMILY_LABELS.get(r.get("familleavis"), r.get("familleavis_lib")),
+                 "notice_url": r.get("url_complete")}
+        if r.get("familleavis") == "dpc":
+            depot = parse_json_field(r.get("depot"))
+            if depot.get("dateCloture"):
+                entry["accounts_period_end"] = depot["dateCloture"]
+        history.append(entry)
+    return history
+
+
+def warning_signs(card, history):
+    """Short factual lines a supply manager would want before an insolvency, derived only from the data."""
+    signs = []
+    if card and card.get("net_result_eur") is not None and card["net_result_eur"] < 0:
+        loss = -card["net_result_eur"] / 1e6
+        revenue = (card.get("revenue_eur") or 0) / 1e6
+        signs.append(f"Latest published accounts ({card.get('accounts_year')}) show a net loss of €{loss:.1f}M"
+                     + (f" on €{revenue:.1f}M revenue" if revenue else ""))
+    for h in history:
+        if h["family"] in ("vente", "radiation", "conciliation"):
+            signs.append(f"{h['label']} on {h['date']}")
+    accounts = [h for h in history if h["family"] == "dpc"]
+    if accounts:
+        last = accounts[0]
+        line = f"Last accounts filed on {last['date']}"
+        if last.get("accounts_period_end"):
+            end, filed = date.fromisoformat(last["accounts_period_end"]), date.fromisoformat(last["date"])
+            months = (filed.year - end.year) * 12 + filed.month - end.month
+            line += f", for the financial year ending {last['accounts_period_end']} ({months} months after the year end)"
+            if (date.today() - end).days > 21 * 30:
+                line += "; no accounts published for any later financial year"
+        signs.append(line)
+    earlier = [h for h in history if h["family"] == "collective"][1:]
+    if earlier:
+        signs.append(f"{len(earlier)} earlier insolvency notice(s), the first on {earlier[-1]['date']}")
+    return signs
+
+
 def company_card(record):
     """What a front end needs to present the company. Deliberately no directors or other
     named people; the head-office address is left out if the company restricts publication."""
@@ -122,6 +181,17 @@ def company_card(record):
         "registry_url": f"https://annuaire-entreprises.data.gouv.fr/entreprise/{record.get('siren')}",
         "source": "API Recherche d'entreprises",
     }
+
+
+def full_company_card(siren):
+    """The registry card plus the company's BODACC history and the warning signs drawn from both."""
+    card = company_card(registry_record(siren))
+    if card is None:
+        return None
+    history = bodacc_history(siren)
+    card["bodacc_history"] = history
+    card["warning_signs"] = warning_signs(card, history)
+    return card
 
 
 def parse_json_field(value):
@@ -183,7 +253,7 @@ def poll(days=30, log=print):
         code = registry_activity(siren)
         if code in SECTOR:
             kept += 1
-            yield to_event(notice, code, company_card(registry_record(siren)))
+            yield to_event(notice, code, full_company_card(siren))
     log(f"BODACC: {seen} keyword matches in {days} days, {kept} confirmed packaging or cosmetics makers")
 
 
