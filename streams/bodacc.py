@@ -69,16 +69,59 @@ def bodacc_notices(days, page=100):
             return
 
 
-_activity_cache = {}
+_registry_cache = {}
+
+# INSEE headcount bands (tranche_effectif_salarie)
+HEADCOUNT = {"00": "0", "01": "1-2", "02": "3-5", "03": "6-9", "11": "10-19", "12": "20-49", "21": "50-99",
+             "22": "100-199", "31": "200-249", "32": "250-499", "41": "500-999", "42": "1,000-1,999",
+             "51": "2,000-4,999", "52": "5,000-9,999", "53": "10,000+"}
+SIZE = {"PME": "SME", "ETI": "Mid-size", "GE": "Large"}
+
+
+def registry_record(siren):
+    """The company's record in the French company registry, or None."""
+    if siren not in _registry_cache:
+        data = get_json(REGISTRY, {"q": siren, "per_page": 1})
+        hits = [r for r in data.get("results", []) if r.get("siren") == siren]
+        _registry_cache[siren] = hits[0] if hits else None
+        time.sleep(0.15)  # the registry allows a few requests per second
+    return _registry_cache[siren]
 
 
 def registry_activity(siren):
-    if siren not in _activity_cache:
-        data = get_json(REGISTRY, {"q": siren, "per_page": 1})
-        hits = [r for r in data.get("results", []) if r.get("siren") == siren]
-        _activity_cache[siren] = hits[0].get("activite_principale") if hits else None
-        time.sleep(0.15)  # the registry allows a few requests per second
-    return _activity_cache[siren]
+    record = registry_record(siren)
+    return record.get("activite_principale") if record else None
+
+
+def company_card(record):
+    """What a front end needs to present the company. Deliberately no directors or other
+    named people; the head-office address is left out if the company restricts publication."""
+    if not record:
+        return None
+    siege = record.get("siege") or {}
+    public = record.get("statut_diffusion", "O") == "O"
+    finances = record.get("finances") or {}
+    latest = max(finances) if finances else None
+    return {
+        "legal_name": record.get("nom_complet"),
+        "siren": record.get("siren"),
+        "activity_code": record.get("activite_principale"),
+        "activity_label": SECTOR.get(record.get("activite_principale")),
+        "size": SIZE.get(record.get("categorie_entreprise"), record.get("categorie_entreprise")),
+        "headcount": HEADCOUNT.get(record.get("tranche_effectif_salarie") or ""),
+        "headcount_year": record.get("annee_tranche_effectif_salarie"),
+        "founded": record.get("date_creation"),
+        "status": {"A": "active", "C": "ceased"}.get(record.get("etat_administratif"), record.get("etat_administratif")),
+        "head_office_city": siege.get("libelle_commune") if public else None,
+        "head_office_postcode": siege.get("code_postal") if public else None,
+        "head_office_department": siege.get("departement"),
+        "open_sites": record.get("nombre_etablissements_ouverts"),
+        "revenue_eur": (finances.get(latest) or {}).get("ca") if latest else None,
+        "net_result_eur": (finances.get(latest) or {}).get("resultat_net") if latest else None,
+        "accounts_year": latest,
+        "registry_url": f"https://annuaire-entreprises.data.gouv.fr/entreprise/{record.get('siren')}",
+        "source": "API Recherche d'entreprises",
+    }
 
 
 def parse_json_field(value):
@@ -90,7 +133,7 @@ def parse_json_field(value):
     return value or {}
 
 
-def to_event(notice, activity_code):
+def to_event(notice, activity_code, company=None):
     judgment = parse_json_field(notice.get("jugement"))
     siren = (notice.get("registre") or [""])[0]
     # The judgment type only: the free-text complement names court-appointed people and addresses,
@@ -116,6 +159,7 @@ def to_event(notice, activity_code):
             "region": notice.get("region_nom_officiel"),
             "notice_url": notice.get("url_complete"),
             "source": "BODACC",
+            "company": company,
         },
     }
 
@@ -139,7 +183,7 @@ def poll(days=30, log=print):
         code = registry_activity(siren)
         if code in SECTOR:
             kept += 1
-            yield to_event(notice, code)
+            yield to_event(notice, code, company_card(registry_record(siren)))
     log(f"BODACC: {seen} keyword matches in {days} days, {kept} confirmed packaging or cosmetics makers")
 
 
