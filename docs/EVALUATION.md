@@ -1,6 +1,6 @@
 # Kickoff evaluation: does the evidence hold?
 
-22 October 2026, written 10:25 and updated 10:50 after the team brief. Based on the starter kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) (commit `36e494b`) and on tests run locally against regenerated copies of its data. The kit's files were not modified. The numbers reproduce with [`evaluation/sweep.py`](evaluation/sweep.py); the run behind this note is [`evaluation/sweep-2026-10-22.txt`](evaluation/sweep-2026-10-22.txt).
+22 October 2026, written 10:25, updated 10:50 after the team brief, and section 8 added at 10:45 after Imène asked whether the test data is big enough. Based on the starter kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) (commit `36e494b`) and on tests run locally against regenerated copies of its data. The kit's files were not modified. The numbers reproduce with [`evaluation/sweep.py`](evaluation/sweep.py); the run behind this note is [`evaluation/sweep-2026-10-22.txt`](evaluation/sweep-2026-10-22.txt).
 
 ## Summary
 
@@ -8,6 +8,7 @@
 - **Fix the proof before anything else.** The kit's "classic spreadsheet" baseline ignores sell-out spikes and partial-delivery confirmations. A planner who simply reads every message, with no supplier memory, detects 82 of 84 stockouts across 21 seeds (98%). LaunchPilot's learned mode detects 73 (87%), because its memory is miscalibrated and predicts stockouts four weeks early in 11 of 84 cases. One judge question ("what does the spreadsheet do with the sell-out spike?") exposes this.
 - **Make the data load-bearing.** The agents compute on CSV copies loaded at import; PostgreSQL mirrors them and stores outputs; the event "stream" is a button; sales history, subcontractors and the four capacity events are unused. "Data at the core" is a judging criterion and the sponsor prize depends on it.
 - **Give the model real work.** Events arrive pre-labelled with exactly the fields the engine needs, so the watch agent's triage step reads a label. Raw inputs (supplier emails, weekly sell-out numbers) make the agent necessary rather than decorative.
+- **Fix the data's coherence before its volume.** The roughly 1,000 sales rows are not what limits the proof: the engine never reads them, and every seed has the same four stockouts. The datasets do not balance: the history receives 400,000 pumps, sales use 117,000, and 11,000 are in stock. Section 8 proposes one simulated ledger that every table derives from, widened around the demo story.
 
 ## 1. Seed sweep: the baseline is a strawman
 
@@ -74,3 +75,69 @@ Competition a jury may name: Flowlity and Pelico (French mid-market planning), P
 - Forecast v1 is flat, times 1.25 in November and December. Sales history has mild seasonality but feeds nothing.
 - The five suppliers and their announced-versus-real lead times (42 against 60 days for the pump supplier, 35 against 47 for the gift-box maker) encode the industry pattern the founder describes. Say on stage that the world is synthetic and why it is shaped this way.
 - The simulated clock runs from 7 September to a launch on 2 November 2026 with a horizon to 28 December. Real-time events dated today (22 October) fit inside that story.
+
+## 8. Test data: is there enough, and does it hold together?
+
+The question was whether about 1,000 sales rows, and the other datasets, are enough. There are no invoices in the kit: the 1,000 are `sales_history`, weekly totals per product and channel. Numbers below are for seed 42; the balance reproduces with [`evaluation/balance.py`](evaluation/balance.py).
+
+### What the generator produces
+
+| Dataset | Rows | Read by the engine | Gap |
+| --- | --- | --- | --- |
+| `sales_history` | 936: 78 weeks × 4 products × 3 channels, 243k units | No | Weekly totals, not invoices; no sales of a previous gift set |
+| `purchase_orders` | 70: 62 delivered, 8 open | Yes; the delivered rows are the supplier memory | 14 lead-time samples per supplier, 6 for the backup pump supplier; quantities drawn at random |
+| `events.jsonl` | 35: 20 disruptions, 15 noise | Yes | Scripted and pre-labelled (section 4) |
+| `forecasts` | 100: 20 weeks × 5 products | Yes | Flat, times 1.25 in November and December; not fitted to the history |
+| `suppliers`, `components`, `products`, `bom` | 5, 6, 5, 14 | Yes | Small for the brand's size (section 7); no activity code or location to join real streams on |
+| `inventory` | 11, one snapshot | Yes | |
+| `subcontractors` | 2 | No | |
+| `ground_truth.json` | 4 stockouts | Evaluation only | The same four components in every seed (section 1) |
+
+### Findings
+
+- **Volume is not what limits the proof.** The engine never reads the sales history, and every seed produces the same four stockouts. More rows per seed change nothing. More seeds, with different components failing and some worlds with none, would make false alarms measurable.
+- **The datasets do not balance.** Opening stock is what the world must have held when the history starts: stock today minus everything received plus everything used.
+
+  | Component | Received | Used by sales | Stock on 7 Sep | Opening stock | Weeks of use |
+  | --- | --- | --- | --- | --- | --- |
+  | `CMP-POM-01` pump | 400,000 | 116,951 | 11,000 | −272,049 | impossible |
+  | `CMP-COF-NOEL` gift box 2026 | 51,000 | 0 | 0 | −51,000 | impossible |
+  | `CMP-ETU-01` serum carton | 35,000 | 116,951 | 24,000 | 105,951 | 71 |
+  | `CMP-FLA-30` 30 ml bottle | 60,000 | 116,951 | 32,000 | 88,951 | 59 |
+  | `CMP-ETU-02` cream carton | 65,000 | 125,994 | 22,000 | 82,994 | 51 |
+  | `CMP-FLA-50` 50 ml jar | 120,000 | 125,994 | 26,000 | 31,994 | 20 |
+
+  Historical order quantities are the minimum order times one or two, drawn without reference to use, and the 2026 gift box is delivered from April 2025 onwards with nothing to put in it. One `SUM` in PostgreSQL shows this, and the agents cite these rows.
+- **No calendar.** Lead times are drawn the same way in August and at Christmas as in March. Once `holiday_closure` events are live, the supplier memory and the stream contradict each other.
+- **Nothing to join real data on.** Suppliers have no activity code, département or SIREN, so the BODACC category watch can match on text only.
+- **One random stream.** Every draw comes from one generator, so any draw added before the open orders shifts all later ones: seed 42's story (the partial delivery on 1 October, EV-019) and the README numbers move with any change to the generator.
+
+### Where more volume does help
+
+- **Supplier memory.** With 14 samples, the 90th-percentile lead time is the second-worst delivery. Two years of history gives about 25 deliveries per supplier and two Christmas seasons, enough for the Monte Carlo calibration in section 6.
+- **Agent scoring.** Extraction accuracy needs 100 to 200 labelled supplier emails, rendered from the ground truth.
+- **The data layer.** PostgreSQL views and Kafka over tens of thousands of rows read as a data layer rather than a mirror of six CSV files.
+
+### Proposed generator changes
+
+1. **One ledger, many views.** Simulate week by week: demand, component use through the bill of materials, stock, a reorder rule (minimum order, prudent lead time), orders, and deliveries drawn from each supplier's real behaviour and the holiday calendar. Every table is derived from that ledger, so the balance closes by construction.
+2. **Keep the demo story.** The pump and gift-set storyline stays a fixed overlay. New data draws from its own random stream (`random.Random(f"{seed}:bg")`), and the existing draws stay in place, so seed 42's lead-time samples do not change. Land this with fix 1 of section 6, so that seed 42 changes once and the README numbers are updated once.
+3. **Last year's gift set.** A 2025 gift set with November and December 2025 sales owns the historical gift-box orders, and gives the 2026 forecast a precedent to check against.
+4. **Invoices, if wanted.** Split the weekly totals top-down into order lines: invoices to retailers and pharmacies, and e-shop orders. The weekly sums do not change, so the projection and the evaluation are unaffected. At this brand's size that is tens of thousands of e-shop orders a year plus a few thousand B2B invoices (a rough estimate).
+5. **Wider world.** A larger catalogue around the demo story (for example 20 suppliers, 60 components, 40 products) and 104 weeks of history.
+
+### Consistency with the real streams
+
+- The generator and the `holiday_closure` producer use the same French holiday source, plus an August closure.
+- Suppliers get an activity code (for example 23.13Z glass containers, 22.22Z plastic packaging, 17.21B cartons) and a département, so the BODACC category watch can match on them. `siren` stays empty unless the team takes the demo mapping (PLAN.md, open decisions).
+- Synthetic live events take their values from the generator's truth and never invent their own. This is already the rule for `supplier_email` and `po_delivered` (INPUT-STREAMS.md); `sellout_weekly` should follow it, from the same demand multipliers as the ground truth. Otherwise the stream and the projection disagree.
+- The simulated clock does not move: 7 September to 22 October, launch on 2 November.
+
+### Priority for today
+
+| Priority | Change | Effort |
+| --- | --- | --- |
+| Must | Close the balance, add the calendar, split the random streams; together with fix 1 of section 6 | about 1 h |
+| Should | Wider catalogue, two years of history, activity codes and départements | 1 to 2 h |
+| If time | Invoice-level rows; 100 or more rendered supplier emails for extraction scoring | about 1 h each |
+| Skip | More rows of the current shape | |
