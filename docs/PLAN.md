@@ -13,19 +13,19 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 | Id | Task | Done when | Priority | Owner | Status |
 | --- | --- | --- | --- | --- | --- |
 | A0 | Port the kit: history preserved, idempotent schema, reset that spares live events, committed `__pycache__` removed | App runs locally against Aiven PostgreSQL and the journey works | Must | Alex (kickoff session) | done, merged to main 10:50; journey verified against accel-pg with live Claude |
-| C0 | Deploy on Alex's Aiven Runtime from this repo | Public URL runs the journey | Must | streams side | scripts ready, dry-run tested |
+| C0 | Deploy on Alex's Aiven Runtime from this repo | Public URL runs the journey | Must | streams side | doing: deploying `launchpilot` from `main` to Aiven Runtime (Frankfurt) |
 | A1 | Live Claude on the deployed app | Traces tab shows a live run with tool calls | Must | Alex (kickoff session) | todo, verified locally at 10:40; waiting for the C0 URL |
 | A5 | Honest proof: fair baseline, timing metric, calibrated probability, proof tab and README updated | Proof tab shows the fair comparison; README numbers replaced | Must | app side | new, from the evaluation |
 | A2 | Free-text supplier email event | An email event in the stream produces a cited alert live | Must | app side (consumer), streams side (producer) | from the brief |
 | A3 | Memory that learns live (`po_delivered`) | Supplier memory tab changes during the demo | Must | same | from the brief |
 | B1 | English UI | No French on screen | Must | app side | from the brief |
 | B2 | Hero moments: announced-versus-actual chart, red pump alert, scenario cards | A first-time viewer gets it in 10 seconds | Must | designer, else app side | from the brief |
-| C4 | Real supplier-health stream from BODACC | A real notice appears as an event and the agent reports exposure | Should | streams side (producer), app side (consumer) | new, from the evaluation |
+| C4 | Real supplier-health stream from BODACC | A real notice appears as an event and the agent reports exposure | Should | streams side (producer), app side (consumer) | doing: BODACC watch emits real packaging and cosmetics notices via Kafka (9 in the last 30 days) |
 | C5 | Test data that holds together: review section 8 of EVALUATION.md (volume, balance, calendar, join keys, random streams), then the generator changes it proposes | Imène approves or amends section 8, and its Must items have an owner | Should | Alex (Claude); review Imène | review: https://github.com/beverage/launchpilot/pull/1 |
 | C3 | Cost and latency per processed event on the proof tab | Numbers on screen | Should | app side | from the brief |
 | B3 | Proof chart | One glanceable exhibit, fair comparison | Should | app side | from the brief |
 | C1 | Route Claude through the sponsor's AI gateway | A live run goes through the gateway | Should | streams side | from the brief |
-| C2 | Event stream on Aiven Kafka instead of table replay | Events consumed from a topic | Nice | streams side | from the brief |
+| C2 | Event stream on Aiven Kafka instead of table replay | Events consumed from a topic | Nice | streams side | doing: `accel-kafka` live, one `lp.<event_type>` topic per stream, bridge into `events` works; `lp.scenario` held until the worker exists |
 | A4 | Capacity drops into the projection | A capacity event can trigger an alert | Nice | app side | from the brief |
 | D1 | Pitch slide: who, why now, proof, first users | Slide final | Must | Imène | from the brief |
 | D2 | Three-minute script and judge Q&A prep | Timed rehearsal under 3:00 | Must | Imène | from the brief |
