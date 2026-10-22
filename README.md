@@ -36,11 +36,11 @@ The baseline is honest: a planner who reads every message (new promised dates, c
 
 | Over 30 synthetic worlds (`python3 evaluate.py`) | Planner without memory | LaunchPilot |
 | --- | --- | --- |
-| Stockouts dated within one week of the truth | 97 / 120 | 112 / 120 |
-| Final dates wrong by more than one week | 23 | 8 |
+| Stockouts dated within one week of the truth | 92 / 120 | 118 / 120 |
+| Final dates wrong by more than one week | 28 | 2 |
 | False alarms | 0 | 0 |
 
-In the demo scenario the launch-week pump stockout (week of 9 November) is first dated 46 days ahead as a watch alert, then raised to critical on 1 October, 39 days ahead, with an 85% probability; the planner without memory places it on 21 December. Doing nothing puts 571 k€ of revenue at risk; the best costed option cuts it to 194 k€. All of this is a recorded scenario on synthetic data, and the app says so on screen. Method and caveats: [docs/EVALUATION.md](docs/EVALUATION.md).
+In the demo scenario the launch-week pump stockout (week of 9 November) is first dated 46 days ahead as a watch alert, then raised to critical on 1 October, 39 days ahead, with a 91% probability; the planner without memory places it on 21 December. Doing nothing puts 571 k€ of revenue at risk; the best costed option, allocating the remaining pumps to the gift set first, cuts it to 437 k€, and the agent shows that a rush order from the backup supplier would land the week the delayed order arrives anyway, so it is not worth placing. Deliveries land on French working days and count for their whole week. All of this is a recorded scenario on synthetic data, and the app says so on screen. Method and caveats: [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ## Working in this repo
 

@@ -30,6 +30,7 @@ def eur(x):
 def _store():
     s, err = get_store()
     T.sync_deliveries(s)          # deliveries applied by another process live in the database
+    T.sync_holidays(s)            # public holidays from the stream extend the built-in French calendar
     return s, err
 
 

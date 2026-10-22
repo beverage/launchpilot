@@ -9,9 +9,9 @@
 {"event_id": "EV-014", "ts": "2026-09-18T08:00:00", "event_type": "capacity_drop", "payload": {"subcontractor_id": "FAC-02", "capacity_drop_rate": 0.5, "weeks_affected": ["2026-09-28"]}}
 {"event_id": "EV-033", "ts": "2026-09-18T11:00:00", "event_type": "noise", "payload": {"note": "cycle count OK"}}
 {"event_id": "EV-025", "ts": "2026-09-18T12:00:00", "event_type": "noise", "payload": {"note": "contract manufacturer visit"}}
-{"event_id": "EV-003", "ts": "2026-09-18T14:00:00", "event_type": "supplier_delay", "payload": {"po_id": "PO-0067", "supplier_id": "SUP-COF", "component_id": "CMP-COF-NOEL", "new_promised_date": "2026-10-10", "announced_delay_days": 12}}
+{"event_id": "EV-003", "ts": "2026-09-18T14:00:00", "event_type": "supplier_delay", "payload": {"po_id": "PO-0067", "supplier_id": "SUP-COF", "component_id": "CMP-COF-NOEL", "new_promised_date": "2026-10-12", "announced_delay_days": 12}}
 {"event_id": "EV-009", "ts": "2026-09-19T09:00:00", "event_type": "sellout_spike", "payload": {"product_id": "PRD-CRE-HYD", "channel": "selective_retail", "observed_vs_forecast": 1.2, "weeks_affected": ["2026-10-12", "2026-10-19", "2026-10-26"]}}
-{"event_id": "EV-004", "ts": "2026-09-22T14:00:00", "event_type": "supplier_delay", "payload": {"po_id": "PO-0065", "supplier_id": "SUP-FLA", "component_id": "CMP-FLA-30", "new_promised_date": "2026-09-26", "announced_delay_days": 5}}
+{"event_id": "EV-004", "ts": "2026-09-22T14:00:00", "event_type": "supplier_delay", "payload": {"po_id": "PO-0065", "supplier_id": "SUP-FLA", "component_id": "CMP-FLA-30", "new_promised_date": "2026-09-28", "announced_delay_days": 5}}
 {"event_id": "EV-030", "ts": "2026-09-22T17:00:00", "event_type": "noise", "payload": {"note": "cycle count OK"}}
 {"event_id": "EV-028", "ts": "2026-09-24T11:00:00", "event_type": "noise", "payload": {"note": "quality follow-up"}}
 {"event_id": "EV-010", "ts": "2026-09-24T12:00:00", "event_type": "sellout_spike", "payload": {"product_id": "PRD-SER-NUI", "channel": "selective_retail", "observed_vs_forecast": 1.5, "weeks_affected": ["2026-10-26", "2026-11-02"]}}
