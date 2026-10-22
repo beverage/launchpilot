@@ -191,3 +191,63 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
         return {"error": f"unknown scenario kind: {kind}"}
     res["total_impact_eur"] = round(res["cost_eur"] + res["lost_revenue_eur"])
     return res
+
+
+# ---------- live events: deliveries, derived events, the merged view the engine reads ----------
+
+ENGINE_TYPES = {"supplier_delay", "sellout_spike", "capacity_drop", "po_confirmed", "noise"}
+OPEN_IDS = [p["po_id"] for p in DB["purchase_orders"] if p["status"] == "open"]   # as shipped in data/
+
+
+def refresh_memory():
+    MEM.clear()
+    MEM.update(supplier_memory(DB))
+
+
+def apply_delivery(po_id, delivered_at, quantity_delivered):
+    """Marks an order delivered in the in-memory data (status, actual date, delivered quantity) and refreshes the
+    supplier memory. Returns the supplier's memory before and after, so the agent and the UI can show the learning."""
+    p = next((x for x in DB["purchase_orders"] if x["po_id"] == po_id), None)
+    if not p:
+        return {"error": f"unknown purchase order {po_id}"}
+    sid = p["supplier_id"]
+    before = dict(MEM[sid])
+    p["status"], p["actual_date"], p["delivered_qty"] = "delivered", delivered_at, int(quantity_delivered)
+    refresh_memory()
+    after = MEM[sid]
+    return {"po_id": po_id, "supplier_id": sid, "supplier": SUP[sid]["name"],
+            "lead_time_days": (_d(delivered_at) - _d(p["order_date"])).days, "announced_days": after["announced"],
+            "typical_before": before["typical"], "typical_after": after["typical"], "deliveries_now": after["n"],
+            "partial": int(quantity_delivered) < int(p["qty"]),
+            "evidence": [f"purchase_orders:{po_id}", f"supplier_reliability:{sid}"]}
+
+
+def reset_deliveries():
+    """Back to the shipped data: orders that were open in data/ are open again."""
+    for p in DB["purchase_orders"]:
+        if p["po_id"] in OPEN_IDS:
+            p["status"], p["actual_date"] = "open", ""
+            p.pop("delivered_qty", None)
+    refresh_memory()
+
+
+def sync_deliveries(store):
+    """At start-up: re-apply the deliveries recorded in the database (another process may have applied them)."""
+    reset_deliveries()
+    for u in store.delivered_updates():
+        apply_delivery(u["po_id"], u["actual_date"], u["delivered_qty"])
+
+
+def events_seen(store):
+    """What the projection engine should know: processed structured events, recorded or derived from supplier emails,
+    in time order, minus rows superseded by a derived twin."""
+    rows = [e for e in store.list_events()
+            if e["processed"] and e["event_type"] in ENGINE_TYPES and not e["payload"].get("superseded")]
+    return sorted(({"event_id": e["event_id"], "ts": e["ts"], "event_type": e["event_type"], "payload": e["payload"]} for e in rows),
+                  key=lambda e: (e["ts"], e["event_id"]))
+
+
+def get_supplier_master():
+    """Our suppliers, for exposure checks against public notices."""
+    return [{"supplier_id": s["supplier_id"], "name": s["name"], "category": s["category"], "siren": s.get("siren") or None}
+            for s in DB["suppliers"]]

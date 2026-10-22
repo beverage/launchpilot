@@ -11,6 +11,7 @@ import streamlit as st
 
 import tools as T
 import agents as A
+import worker as W
 from store import get_store
 from strings import EN as S
 
@@ -27,7 +28,9 @@ def eur(x):
 # ---------------- state ----------------
 @st.cache_resource
 def _store():
-    return get_store()
+    s, err = get_store()
+    T.sync_deliveries(s)          # deliveries applied by another process live in the database
+    return s, err
 
 
 store, store_err = _store()
@@ -37,17 +40,30 @@ if "log" not in st.session_state:
 if "reco" not in st.session_state:
     st.session_state.reco = {}         # alert_id -> recommendation text
 
-seen_ids = [e["event_id"] for e in store.list_events()]
-seen = [e for e in ALL if e["event_id"] in seen_ids]
-now = date.fromisoformat(seen[-1]["ts"][:10]) if seen else T.SIM_TODAY
+rows_all = store.list_events()
+processed_ids = {e["event_id"] for e in rows_all if e["processed"]}
+recorded_done = [e for e in ALL if e["event_id"] in processed_ids]          # progress through the recorded scenario
+seen = T.events_seen(store)                                                 # what the engine knows: recorded + derived from emails
+clock = max([e["ts"] for e in rows_all if e["processed"]] or [T.SIM_TODAY.isoformat()])
+now = date.fromisoformat(clock[:10])
 live_ok = A.claude_available()
+due_now = store.list_unprocessed(clock)
 
 
 def process(event, live):
-    store.add_event(event)
-    s = seen + [event]
-    run = (A.watch_live if live else A.watch_rules)(store, event, s)
-    store.mark_processed(event["event_id"])
+    """Analyse one recorded event, after draining the live rows due by then (an email may carry the same news first)."""
+    for r in W.drain(store, event["ts"], live):
+        st.session_state.log.append(r)
+    twin = store.superseded_by(event["event_id"])
+    if twin:
+        store.add_event(dict(event, payload={**event["payload"], "superseded": True}), processed=True)
+        run = {"agent": "watch", "mode": "rules", "input": event["event_id"], "tool_calls": [], "output": S["superseded_note"].format(twin=twin),
+               "latency_ms": 0, "tokens_in": 0, "tokens_out": 0, "alerts_created": []}
+        store.log_run(run)
+    else:
+        store.add_event(event)
+        run = (A.watch_live if live else A.watch_rules)(store, event, T.events_seen(store) + [event])
+        store.mark_processed(event["event_id"])
     st.session_state.log.append(run)
     return run
 
@@ -73,27 +89,32 @@ with tab_launch:
                 for r in proj if r["stockout_week_launchpilot"]] or [0])
     k1, k2, k3, k4 = st.columns(4)
     k1.metric(S["sim_date"], now.strftime("%d/%m/%Y"))
-    k2.metric(S["events_processed"], f"{len(seen)} / {len(ALL)}")
+    k2.metric(S["events_processed"], f"{len(recorded_done)} / {len(ALL)}")
     k3.metric(S["critical_alerts"], len(high))
     k4.metric(S["revenue_at_risk"], eur(risk))
 
-    c1, c2, c3, c4 = st.columns([1.2, 1.4, 1.4, 1])
+    c1, c2, c3, c4, c5 = st.columns([1.1, 1.2, 1.5, 1.4, 0.8])
     use_live = c1.toggle(S["toggle_live"], value=live_ok, disabled=not live_ok, help=S["toggle_help"])
-    nxt = ALL[len(seen)] if len(seen) < len(ALL) else None
+    nxt = ALL[len(recorded_done)] if len(recorded_done) < len(ALL) else None
     if c2.button(S["next_event"], disabled=nxt is None, width="stretch"):
         with st.spinner(S["spinner_watch"].format(event=nxt["event_id"])):
             process(nxt, use_live)
         st.rerun()
-    if c3.button(S["fast_forward"], width="stretch", disabled="EV-019" in seen_ids):
+    if c3.button(S["fast_forward"], width="stretch", disabled="EV-019" in processed_ids):
         stop = [e["event_id"] for e in ALL].index("EV-019")
-        for e in ALL[len(seen):stop]:
+        for e in ALL[len(recorded_done):stop]:
             process(e, False)           # fast-forward in rules mode
-            seen.append(e)
         with st.spinner(S["spinner_watch"].format(event="EV-019")):
             process(ALL[stop], use_live)  # the key moment live when possible
         st.rerun()
-    if c4.button(S["reset"], width="stretch"):
+    if c4.button(S["live_due"].format(n=len(due_now)), width="stretch", disabled=not due_now, help=S["live_due_help"]):
+        with st.spinner(S["spinner_live"].format(n=len(due_now))):
+            for r in W.drain(store, clock, use_live):
+                st.session_state.log.append(r)
+        st.rerun()
+    if c5.button(S["reset"], width="stretch"):
         store.reset()
+        T.reset_deliveries()
         st.session_state.log, st.session_state.reco = [], {}
         st.rerun()
 
@@ -133,16 +154,21 @@ with tab_launch:
 
     with right:
         st.subheader(S["feed_title"])
-        if not seen:
+        feed = sorted([e for e in rows_all if e["processed"] and not e["event_id"].endswith("/derived")], key=lambda e: (e["ts"], e["event_id"]))
+        if not feed:
             st.info(S["feed_empty"])
-        for e in reversed(seen[-6:]):
+        for e in reversed(feed[-8:]):
             p = e["payload"]
             det = {"supplier_delay": lambda: S["feed_delay"].format(supplier=T.SUP[p["supplier_id"]]["name"], po=p["po_id"], days=p["announced_delay_days"]),
                    "sellout_spike": lambda: S["feed_spike"].format(product=T.PROD[p["product_id"]]["name"], factor=p["observed_vs_forecast"]),
                    "capacity_drop": lambda: S["feed_capacity"].format(plant=p["subcontractor_id"], pct=int(p["capacity_drop_rate"] * 100)),
                    "po_confirmed": lambda: S["feed_confirmed"].format(po=p["po_id"], qty=p["confirmed_qty"]),
-                   "noise": lambda: p.get("note", "")}[e["event_type"]]()
-            st.markdown(f"`{e['ts'][:10]}` **{EVENT_KIND[e['event_type']]}** — {det}")
+                   "noise": lambda: p.get("note", ""),
+                   "supplier_email": lambda: S["feed_email"].format(from_name=p.get("from_name", ""), subject=p.get("subject", "")),
+                   "po_delivered": lambda: S["feed_delivery"].format(po=p["po_id"], qty=p["quantity_delivered"], partial=S["feed_partial"] if p.get("partial") else ""),
+                   "supplier_insolvency": lambda: S["feed_insolvency"].format(company=p.get("company_name", ""), procedure=p.get("procedure", "")),
+                   }.get(e["event_type"], lambda: S["feed_other"].format(kind=e["event_type"]))()
+            st.markdown(f"`{e['ts'][:10]}` **{EVENT_KIND.get(e['event_type'], '•')}** — {det}")
 
         st.subheader(S["alerts_title"])
         alerts, _seen_items = [], set()

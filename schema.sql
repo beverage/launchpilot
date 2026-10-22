@@ -154,3 +154,6 @@ CREATE TABLE IF NOT EXISTS app_meta (
   key              TEXT PRIMARY KEY,
   value            TEXT
 );
+
+-- Quantity actually received (set by live po_delivered events; NULL = full order)
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS delivered_qty INT;

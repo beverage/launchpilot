@@ -14,6 +14,7 @@ Built at the Accel AI Innovate hackathon, Paris, 22 October 2026. Deployed on Ai
 | `projection.py` | Deterministic stock projection, naive and learned modes, what-if simulations |
 | `store.py`, `schema.sql` | Aiven for PostgreSQL store with auto-bootstrap, or an in-memory fallback; tables and the `supplier_reliability` view |
 | `generate_data.py`, `evaluate.py`, `data/` | Seeded synthetic world (fictional brand Maison Aurore) and the proof script |
+| `worker.py`, `generate_corpora.py` | Consumer of live events (supplier emails, goods receipts, BODACC notices) and the generator of the email and delivery corpora replayed through Kafka |
 | `streams/` | Pollers that turn outside data streams into events (supplier insolvencies, holidays, and more) |
 | `docs/` | Kickoff findings: [evaluation of the evidence](docs/EVALUATION.md), [input streams and the events contract](docs/INPUT-STREAMS.md), [build plan](docs/PLAN.md), and the [sweep script](docs/evaluation/sweep.py) that reproduces the numbers |
 
