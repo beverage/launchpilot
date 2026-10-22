@@ -49,24 +49,25 @@ Upload a screenshot of the proof tab's exhibit (B3), taken on the deployed build
 
 | | Planner without memory (reads every message, believes announced lead times) | LaunchPilot (same reading plus supplier memory) |
 | --- | --- | --- |
-| Stockouts dated within one week of the truth | 97 / 120 | 112 / 120 |
-| Final dates wrong by more than a week | 23 | 8 |
+| Stockouts dated within one week of the truth | 92 / 120 | 118 / 120 |
+| Final dates wrong by more than a week | 28 | 2 |
 | False alarms | 0 | 0 |
 
-Demo world: the pump stockout is dated 46 days ahead and raised to critical on 1 October at 85 %; the planner without memory places it on 21 December. Doing nothing puts 571 k€ of revenue at risk; the best costed option cuts it to 194 k€. Say that the comparison is against an attentive planner, not a strawman spreadsheet.
+Demo world: the pump stockout is dated 46 days ahead and raised to critical on 1 October at 91 %; the planner without memory places it on 21 December. Doing nothing puts 571 k€ of revenue at risk; the best costed option (gift set first) cuts it to 437 k€, and a rush order from the backup supplier would land on 23 November, after the gap. Say that the comparison is against an attentive planner, not a strawman spreadsheet.
 
 ## The demo video (three minutes, MP4)
 
-One end-to-end journey on the deployed app, recorded after the 15:00 freeze and after the redeploy that carries B3 and C3. A shot list that fits:
+One end-to-end journey on the deployed app, recorded after the freeze, once the deploy that carries A4, A6, A7 and A8 is live, the web API is rebased on main, and the order books (C7) are replayed into the stream. Press Reset first: the database is shared. Four catches, in the order the story meets them:
 
 1. 0:00 The user and the stake: Claire, supply manager at an independent French cosmetics brand, Christmas launch on 2 November; her spreadsheet says the pumps hold until December.
-2. 0:20 Reset, play the recorded events; a French supplier email arrives and the agent extracts the new date, citing it.
-3. 0:50 EV-019, the partial pump delivery: the pump alert turns critical, launch week, 85 %, with its evidence rows.
-4. 1:20 Propose solutions: costed options in euros; choose one.
-5. 1:50 The memory learns: show Pompes Atlas on the Supplier memory tab (60.3-day average against 42 announced, 14 late deliveries out of 14), then press Fast-forward to today. The pump receipt of 21 October lands: 12,000 of 20,000, 79 days after the order. Back on the tab, the average moves to 61.5 days, the planning lead time from 60 to 62, and all 15 deliveries are late. (The other receipts barely move their suppliers' figures, so show this one.)
-6. 2:15 The same fast-forward brings a real BODACC notice for the gift-box supplier (label it as a demo mapping). The alert sizes what is at stake: 12,000 of the 21,000 launch boxes are still on order with that supplier; if this order does not arrive, the gift set runs out the week of 16 November instead of 14 December, about 1.07 M€ more at risk, with no second source. Say "if this order does not arrive": the real company keeps trading under court supervision.
-7. 2:35 Proof: 112 vs 97 of 120 against the planner without memory; cost and latency per event.
-8. 2:55 What is live (Claude agents, Kafka streams, BODACC) and what is recorded (synthetic data, fixed scenario).
+2. 0:15 Reset and play. In September the retailers' order books arrive as raw numbers, not labels ("📈 Retailer orders": Sérum Éclat, 5,670 expected against 4,050 forecast over four weeks); LaunchPilot turns each into a demand change itself. (Without C7 the feed shows the recorded spikes instead; the numbers are the same.)
+3. 0:40 30 September, the filler: Laboratoire Val de Loire's third capacity notice. The capacity alert says Sérum Éclat cannot be filled from launch week, 1,107 units and 54,243 € short, because the gift set is filled first; filling the overflow at Cosmétiques Normandie saves all of it. The bottles and pumps are there; the filling line is not.
+4. 1:05 1 October, the pump: open the French email (Pompes Atlas confirms only 12,000 of 20,000). The pump alert turns critical: week of 9 November, 39 days ahead, 91 %; the planner without memory says 21 December.
+5. 1:30 Propose solutions: doing nothing puts 571,097 € at risk; the best option is to fill the gift set first, 436,900 €. A rush order from Dosage Riviera would land on Monday 23 November, after the gap, so the tool shows it as worthless: the decision now is allocation, not ordering.
+6. 1:55 The memory learns: show Pompes Atlas on the Supplier memory tab (60.9-day average against 42 announced, 14 late deliveries out of 14), then press Fast-forward to today. The pump receipt of 21 October lands, 79 days after the order; the average moves to 62.1 days, the planning lead time from 62 to 63, and all 15 deliveries are late.
+7. 2:15 The same fast-forward brings a real BODACC notice for the gift-box supplier (label it as a demo mapping): 12,000 of the 21,000 launch boxes are still on order with it; if this order does not arrive, the gift set runs out the week of 16 November instead of 14 December, about 1.07 M€ more at risk, with no second source. Say "if this order does not arrive": the real company keeps trading under court supervision.
+8. 2:35 Proof: 118 vs 92 of 120 stockouts dated within a week, 2 vs 28 dates wrong by more than a week, against the planner without memory; cost and latency per event.
+9. 2:55 What is live (Claude agents, Kafka streams, BODACC) and what is recorded (synthetic data, fixed scenario).
 
 ## The pitch slide
 
