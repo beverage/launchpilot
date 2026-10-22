@@ -16,10 +16,32 @@ from pydantic import BaseModel
 
 import tools as T
 import agents as A
-from store import PgStore, get_store
+from store import MemStore, PgStore
 from strings import EN as S
 
-store, store_err = get_store()
+
+
+class SharedPgStore(PgStore):
+    """The Streamlit app (launchpilot) owns the schema and the master data in accel-pg. The API only connects:
+    no schema, no CSV reload and no reset at start-up, so restarting it never touches the shared demo.
+    (PgStore's bootstrap reloads the tables whenever data/ differs, so two apps on different commits would fight.)"""
+
+    def __init__(self, url):
+        self.url = url
+        self._connect()
+
+
+def _open_store():
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        return MemStore(), None
+    try:
+        return SharedPgStore(url), None
+    except Exception as ex:  # never block the frontend
+        return MemStore(), f"PostgreSQL connection failed, running in memory: {ex}"
+
+
+store, store_err = _open_store()
 ALL = T.all_events()
 LOCK = threading.Lock()      # one agent run at a time: a double click must not process an event twice
 RUNS = []                    # this process's agent runs, with tool calls (the store keeps a summary)
