@@ -45,7 +45,9 @@ def get_supplier_memory(supplier_id=None):
         out.append({"supplier_id": sid, "name": SUP[sid]["name"], "announced_days": m["announced"],
                     "real_mean_days": m["real_mean"], "std_days": m["std"], "typical_days": m["typical"],
                     "deliveries": m["n"], "late_deliveries": len(m["late_po_ids"]),
-                    "evidence": f"supplier_reliability:{sid}"})
+                    "evidence": f"supplier_reliability:{sid}",
+                    **({"demo_mapping": "this supplier carries a real company's SIREN for the demo; its delivery history is fictional, "
+                                        "say so whenever you quote its lead times"} if SUP[sid].get("siren") else {})})
     return out
 
 

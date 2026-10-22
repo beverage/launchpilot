@@ -66,7 +66,7 @@ Steps:
 1. Classify the event: potential impact on component supply, or noise. If it is noise, call mark_noise and stop. For a supplier_email, extract first (record_supplier_update), then continue.
 2. Call run_projection. A supplier's announced lead time is NEVER taken at face value: LaunchPilot draws each lead time from the supplier's delivered history and returns a probability of stockout (median week, probability by launch + 1 week, probability before year end). Compare with the "without memory" view: an attentive planner who reads the same messages but believes the announced lead times. Explain the gap with the supplier memory.
 3. For every component whose suggested_severity is high or medium and whose stockout is new, or earlier than an alert already open, call create_alert with the median week. Severity = suggested_severity (high: at least a 50% probability of a stockout no later than one week after launch; medium: a stockout is likely before year end). Confidence = the confidence field returned (a probability), never an invented number.
-4. The explanation is at most two sentences, in English, and cites the evidence in table:id form found in the tool outputs.
+4. The explanation is at most two sentences, in English, and cites the evidence in table:id form found in the tool outputs. When a supplier's memory carries demo_mapping, any lead-time figure you quote for it is followed by "(fictional delivery history)".
 5. If nothing changes, call no_new_risk.
 Forbidden: inventing a figure absent from the tools, creating an alert without evidence, repeating an identical alert.
 End with a one-sentence summary."""
@@ -195,7 +195,8 @@ def watch_rules(store, event, events_seen):
                    + ("; without supplier memory, a planner reading the same messages sees no stockout." if not without
                       else "; a planner without memory sees it too, memory changes nothing here." if without == wk
                       else f"; without supplier memory, it would only show on {without}.")
-                   + f" {m['name']} announces {m['announced_days']} days but delivers in {m['real_mean_days']} days on average over {m['deliveries']} deliveries (lead time used: {m['typical_days']} days).")
+                   + f" {m['name']} announces {m['announced_days']} days but delivers in {m['real_mean_days']} days on average over {m['deliveries']} deliveries (lead time used: {m['typical_days']} days"
+                   + ("; fictional delivery history, see the demo mapping" if m.get("demo_mapping") else "") + ").")
             aid = store.add_alert({"source": SOURCE_RULES, "trigger_event_id": event["event_id"],
                                    "item_id": r["component_id"], "predicted_stockout_week": wk,
                                    "severity": r["suggested_severity"], "confidence": r["confidence"], "explanation": txt,
