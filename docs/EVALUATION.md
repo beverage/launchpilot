@@ -1,6 +1,6 @@
 # Kickoff evaluation: does the evidence hold?
 
-22 October 2026, written 10:25, updated 10:50 after the team brief, and section 8 added at 10:45 after Imène asked whether the test data is big enough. Based on the starter kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) (commit `36e494b`) and on tests run locally against regenerated copies of its data. The kit's files were not modified. The numbers reproduce with [`evaluation/sweep.py`](evaluation/sweep.py); the run behind this note is [`evaluation/sweep-2026-10-22.txt`](evaluation/sweep-2026-10-22.txt).
+22 October 2026, written 10:25, updated 10:50 after the team brief, section 8 added at 10:45 after Imène asked whether the test data is big enough, and updated at 12:35 after the C5 generator fixes. Based on the starter kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) (commit `36e494b`) and on tests run locally against regenerated copies of its data. The kit's files were not modified. The numbers reproduce with [`evaluation/sweep.py`](evaluation/sweep.py); the run behind this note is [`evaluation/sweep-2026-10-22.txt`](evaluation/sweep-2026-10-22.txt).
 
 ## Update 11:30: fixes 1 to 3 applied (task A5)
 
@@ -16,7 +16,7 @@
 - **Fix the proof before anything else.** The kit's "classic spreadsheet" baseline ignores sell-out spikes and partial-delivery confirmations. A planner who simply reads every message, with no supplier memory, detects 82 of 84 stockouts across 21 seeds (98%). LaunchPilot's learned mode detects 73 (87%), because its memory is miscalibrated and predicts stockouts four weeks early in 11 of 84 cases. One judge question ("what does the spreadsheet do with the sell-out spike?") exposes this.
 - **Make the data load-bearing.** The agents compute on CSV copies loaded at import; PostgreSQL mirrors them and stores outputs; the event "stream" is a button; sales history, subcontractors and the four capacity events are unused. "Data at the core" is a judging criterion and the sponsor prize depends on it.
 - **Give the model real work.** Events arrive pre-labelled with exactly the fields the engine needs, so the watch agent's triage step reads a label. Raw inputs (supplier emails, weekly sell-out numbers) make the agent necessary rather than decorative.
-- **Fix the data's coherence before its volume.** The roughly 1,000 sales rows are not what limits the proof: the engine never reads them, and every seed has the same four stockouts. The datasets do not balance: the history receives 400,000 pumps, sales use 117,000, and 11,000 are in stock. Section 8 proposes one simulated ledger that every table derives from, widened around the demo story.
+- **Fix the data's coherence before its volume.** The roughly 1,000 sales rows are not what limits the proof: the engine never reads them, and every seed has the same four stockouts. The datasets do not balance: the history receives 400,000 pumps, sales use 117,000, and 11,000 are in stock. Section 8 proposes one simulated ledger that every table derives from, widened around the demo story. Fixed at 12:30 for the cartons, the 30 ml bottle and the 50 ml jar; the pumps follow with a lower minimum order (decided 12:46), and the gift box is still out of balance (section 8, update 12:35).
 
 ## 1. Seed sweep: the baseline is a strawman
 
@@ -87,6 +87,24 @@ Competition a jury may name: Flowlity and Pelico (French mid-market planning), P
 ## 8. Test data: is there enough, and does it hold together?
 
 The question was whether about 1,000 sales rows, and the other datasets, are enough. There are no invoices in the kit: the 1,000 are `sales_history`, weekly totals per product and channel. Numbers below are for seed 42; the balance reproduces with [`evaluation/balance.py`](evaluation/balance.py).
+
+### Update 12:35: what landed, and what is left
+
+Applied on `main` in `3f5cbca` (task C5). Lead times, the supplier memory and the proof do not move: `evaluate.py` still gives 112 of 120 against 97 of 120, and 8 against 23 wrong dates.
+
+- **Activity codes.** `suppliers.activity_code` is 23.13Z for the glassmaker, 22.29A for both pump makers and 17.21B for the carton and gift-box makers, with no SIREN. The exposure check on BODACC notices names same-sector suppliers as a watch.
+- **Balance for the cartons, the 30 ml bottle and the 50 ml jar.** Delivered quantities are recomputed after every random draw; opening stock is now 6 to 8 weeks of use, down from 20 to 71.
+- **Two supplier emails reworded.** MAIL-003 is dated 18 September, before the receipt it announces; MAIL-004 confirms a partial quantity without a shipment date.
+
+Left, and why:
+
+- **Pumps cannot balance on quantities alone.** Fourteen deliveries at Pompes Atlas's 20,000 minimum and six at the backup's 5,000 make at least 310,000 pumps received against 117,000 used. Each fix costs something: a lower minimum changes the main-supplier rush order and the "minimum orders are high" story; fewer historical deliveries move the memory and every proof number; history-only demand would have to outsell today's whole range. Alex chose at 12:46 to lower Pompes Atlas's minimum order from 20,000 to 6,000, the highest round value that balances (about five weeks of opening stock); it is applied in the generator under C5. Lead times and the proof do not move; the minimum order is read only by the costed rush order from Pompes Atlas, whose figures change.
+- **Gift box.** It needs last year's gift sets as history-only products, and the projection reads a forecast for every product in the bill of materials, so it waits until after the freeze.
+- **Calendar.** Deferred with the holiday stream (decision at 10:41); it would move every proof number.
+- **Random streams.** The probabilistic projection has one stream per supplier since A3 (decision at 12:11). The generator still has one, which matters only once the world is widened.
+- **Wider world, invoices, two years of history:** after the freeze.
+
+The rest of this section describes the data as it was at 10:45.
 
 ### What the generator produces
 
