@@ -52,8 +52,8 @@ One end-to-end journey on the deployed app, recorded after the 15:00 freeze and 
 2. 0:20 Reset, play the recorded events; a French supplier email arrives and the agent extracts the new date, citing it.
 3. 0:50 EV-019, the partial pump delivery: the pump alert turns critical, launch week, 85 %, with its evidence rows.
 4. 1:20 Propose solutions: costed options in euros; choose one.
-5. 1:50 Supplier memory: a live goods receipt moves the supplier's real lead time on screen.
-6. 2:15 Fast-forward to today: a real BODACC notice hits the gift-box supplier (label it as a demo mapping).
+5. 1:50 The memory learns: show Pompes Atlas on the Supplier memory tab (60.3-day average against 42 announced, 14 late deliveries out of 14), then press Fast-forward to today. The pump receipt of 21 October lands: 12,000 of 20,000, 79 days after the order. Back on the tab, the average moves to 61.5 days, the planning lead time from 60 to 62, and all 15 deliveries are late. (The other receipts barely move their suppliers' figures, so show this one.)
+6. 2:15 The same fast-forward brings a real BODACC notice for the gift-box supplier (label it as a demo mapping).
 7. 2:35 Proof: 112 vs 97 of 120 against the planner without memory; cost and latency per event.
 8. 2:55 What is live (Claude agents, Kafka streams, BODACC) and what is recorded (synthetic data, fixed scenario).
 
