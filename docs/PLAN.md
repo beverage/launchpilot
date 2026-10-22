@@ -29,7 +29,9 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 | A4 | Capacity drops into the projection | A capacity event can trigger an alert | Nice | app side | from the brief |
 | D1 | Pitch slide: who, why now, proof, first users | Slide final | Must | Imène | from the brief |
 | D2 | Three-minute script and judge Q&A prep | Timed rehearsal under 3:00 | Must | Imène | from the brief |
-| D3 | Backup screen recording of the demo | Video saved | Must | Imène | from the brief |
+| D3 | Demo video: required by the form, not a backup (one end-to-end journey, MP4, three minutes at most; shot list in [SUBMISSION.md](SUBMISSION.md)) | MP4 uploaded to the form | Must | Imène | from the brief |
+| D4 | Submission form text fields: name, one-line pitch, data layer in action, GitHub and demo links | Fields filled on the form | Must | Alex | doing: drafts in [SUBMISSION.md](SUBMISSION.md) |
+| D5 | Evidence upload: screenshot of the proof exhibit (B3) and the cost and latency panel (C3) on the deployed build | Image uploaded to the form | Must | Alex | todo, after the redeploy that carries B3 and C3 |
 
 ## Milestones (proposal; the brief's were 10:30, 12:30, 14:00, 15:30)
 
@@ -58,3 +60,4 @@ When one is settled, log it in DECISIONS.md and delete it here.
 - Fictional suppliers only, or an optional real SIREN per supplier for the registry stream (see the mapping note in INPUT-STREAMS.md)?
 - Which two new streams by 13:30? Recommendation: supplier email (A2) and deliveries (A3), with BODACC (C4) third if time allows.
 - A planner's one-line quote on announced versus real lead times, for credibility on stage.
+- Which front end the demo video and the demo link show: the Streamlit app or the web front end. Both write to the same shared database, so a judge who presses Reset changes what everyone sees.
