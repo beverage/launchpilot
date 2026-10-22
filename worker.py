@@ -85,6 +85,9 @@ def process_live(store, row, live):
             else:
                 run = _note(store, row, f"no direct exposure: {pl.get('company_name')} ({pl.get('procedure')}) is not one of our suppliers"
                                         + (f"; same sector ({pl.get('activity_code')}) as {', '.join(same_sector)}, worth a check" if same_sector else ""))
+    elif t == "holiday_closure":
+        n = T.sync_holidays(store)
+        run = _note(store, row, f"calendar updated: {pl.get('name', 'closure')} on {pl.get('start_date') or pl.get('date')} ({pl.get('kind', 'public_holiday')}); {n} live holiday dates in the delivery calendar")
     else:
         run = _note(store, row, f"{t}: no effect on the projection yet")
     store.mark_processed(row["event_id"])

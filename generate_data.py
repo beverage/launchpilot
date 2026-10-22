@@ -35,6 +35,14 @@ WINDOW_END = date(2026, 12, 28)      # fin de la fenêtre de Noël suivie
 
 def monday(d): return d - timedelta(days=d.weekday())
 def weeks(start, n): return [start + timedelta(weeks=i) for i in range(n)]
+# French public holidays 2025-2026 (Nager.Date's national list): deliveries land on working days, in the truth as in the engine
+HOLIDAYS = {date.fromisoformat(d) for d in (
+    "2025-01-01", "2025-04-21", "2025-05-01", "2025-05-08", "2025-05-29", "2025-06-09", "2025-07-14", "2025-08-15", "2025-11-01", "2025-11-11", "2025-12-25",
+    "2026-01-01", "2026-04-06", "2026-05-01", "2026-05-08", "2026-05-14", "2026-05-25", "2026-07-14", "2026-08-15", "2026-11-01", "2026-11-11", "2026-12-25")}
+def working_day(d):
+    while d.weekday() >= 5 or d in HOLIDAYS:
+        d += timedelta(days=1)
+    return d
 FUTURE = weeks(SIM_TODAY, HORIZON_WEEKS)
 PAST = weeks(SIM_TODAY - timedelta(weeks=HISTORY_WEEKS), HISTORY_WEEKS)
 
@@ -114,9 +122,9 @@ def new_po(sid, cid, qty, odate, delivered, real_offset=None):
     global po_n
     po_n += 1
     s = sup[sid]
-    promised = odate + timedelta(days=s[3])
+    promised = working_day(odate + timedelta(days=s[3]))
     real = real_offset if real_offset is not None else max(s[3] - 5, int(rng.gauss(s[6], s[7])))
-    actual = odate + timedelta(days=real)
+    actual = working_day(odate + timedelta(days=real))
     rec = {"po_id": f"PO-{po_n:04d}", "supplier_id": sid, "component_id": cid, "qty": qty,
            "order_date": odate, "promised_date": promised,
            "actual_date": actual if delivered else None,
@@ -222,8 +230,8 @@ for i, (cid, extra_announced) in enumerate([("CMP-POM-01", 10), ("CMP-POM-01", 1
     po = po_by(cid)[i % len(po_by(cid))]
     sid = po["supplier_id"]; s = sup[sid]
     slip_real = int(extra_announced * (s[6] / s[3]))          # les mauvais fournisseurs glissent plus que prévu
-    true_arrival[po["po_id"]] += timedelta(days=slip_real)
-    new_promised = po["promised_date"] + timedelta(days=extra_announced)
+    true_arrival[po["po_id"]] = working_day(true_arrival[po["po_id"]] + timedelta(days=slip_real))
+    new_promised = working_day(po["promised_date"] + timedelta(days=extra_announced))
     e = ev(3 + i * 4, "supplier_delay", {"po_id": po["po_id"], "supplier_id": sid, "component_id": cid,
            "new_promised_date": new_promised.isoformat(), "announced_delay_days": extra_announced})
     DISRUPTIONS.append(e)

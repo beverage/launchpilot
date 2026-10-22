@@ -3,7 +3,7 @@ Outils métier de LaunchPilot : ce que les agents ont le droit d'appeler.
 Tous les calculs sont déterministes (projection.py) ; les agents décident quoi calculer et expliquent.
 """
 from datetime import date, timedelta
-from projection import load, project, project_prob, supplier_memory, _d, monday
+from projection import load, project, project_prob, supplier_memory, _d, monday, working_day, set_holidays
 import os
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -139,7 +139,7 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
         s, m = SUP[sid], MEM[sid]
         q = int(qty or max(shortage, int(s["moq"])))
         q = max(q, int(s["moq"]))
-        arrival = now + timedelta(days=m["typical"])
+        arrival = working_day(now + timedelta(days=m["typical"]))
         sim = project(DB, events_seen, "learned", extra_pos=[{"component_id": component_id, "qty": q, "arrival": arrival,
                                                              "supplier_id": sid, "label": f"rush order from {s['name']}"}])[component_id]
         left = unserved_units(component_id, sim["series"])
@@ -149,7 +149,7 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
         nxt_neg = next((w for w, b in base["series"] if b < 0 and _d(w) >= monday(arrival)), None)
         margin = max(0, (_d(nxt_neg) - arrival).days) if nxt_neg else None   # 0 = la commande arrive la semaine même où le stock casse
         res.update(label=f"Rush order from {s['name']}", supplier_id=sid, qty=q, safety_margin_days=margin,
-                   arrival_realistic=arrival.isoformat(), announced_arrival=(now + timedelta(days=m["announced"])).isoformat(),
+                   arrival_realistic=arrival.isoformat(), announced_arrival=working_day(now + timedelta(days=m["announced"])).isoformat(),
                    cost_eur=round(cost), stock_value_eur=round(purchase), lost_revenue_eur=round(left * avg_price),
                    shortage_units_after=left, new_stockout_week=sim["stockout_week"],
                    detail=f"{q} units × {float(s['unit_cost_eur']):.2f} € (MOQ {s['moq']}), realistic arrival {arrival} (lead time used {m['typical']} d = median actual, announced {m['announced']} d)"
@@ -314,3 +314,17 @@ def supplier_exposure(events_seen, supplier_id):
                     "severity_if_missing": "high" if wk and _d(wk) <= LAUNCH_WEEK + timedelta(weeks=1) else ("medium" if wk else None),
                     "evidence": [f"inventory:{cid}"] + [f"purchase_orders:{p['po_id']}" for p in pos_c]})
     return out
+
+
+def sync_holidays(store):
+    """Public holidays from live HOL- rows (holiday_closure, kind public_holiday) extend the built-in French calendar."""
+    dates = set()
+    for e in store.list_events():
+        if e["event_type"] == "holiday_closure" and e["payload"].get("kind", "public_holiday") == "public_holiday":
+            start, end = e["payload"].get("start_date") or e["payload"].get("date"), e["payload"].get("end_date") or e["payload"].get("date")
+            if start:
+                d, last = _d(start), _d(end or start)
+                while d <= last:
+                    dates.add(d); d += timedelta(days=1)
+    set_holidays(dates)
+    return len(dates)

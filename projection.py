@@ -24,6 +24,24 @@ from datetime import date, timedelta
 def _d(s): return date.fromisoformat(s) if s else None
 def monday(d): return d - timedelta(days=d.weekday())
 
+# French public holidays 2025-2026, identical to Nager.Date's national list, so the generator and a fresh database agree.
+# Live HOL- rows (holiday_closure, kind public_holiday) extend this set at run time through set_holidays().
+HOLIDAYS_FR = {date.fromisoformat(d) for d in (
+    "2025-01-01", "2025-04-21", "2025-05-01", "2025-05-08", "2025-05-29", "2025-06-09", "2025-07-14", "2025-08-15", "2025-11-01", "2025-11-11", "2025-12-25",
+    "2026-01-01", "2026-04-06", "2026-05-01", "2026-05-08", "2026-05-14", "2026-05-25", "2026-07-14", "2026-08-15", "2026-11-01", "2026-11-11", "2026-12-25")}
+HOLIDAYS = set(HOLIDAYS_FR)
+
+def set_holidays(dates):
+    """Replaces the live holiday calendar: the built-in list plus the dates given (from HOL- rows)."""
+    HOLIDAYS.clear(); HOLIDAYS.update(HOLIDAYS_FR); HOLIDAYS.update(dates)
+
+def working_day(d, holidays=None):
+    """A delivery lands on a working day: Saturdays, Sundays and public holidays move to the next working day."""
+    hol = HOLIDAYS if holidays is None else holidays
+    while d.weekday() >= 5 or d in hol:
+        d += timedelta(days=1)
+    return d
+
 def load(path="data"):
     rd = lambda n: list(csv.DictReader(open(os.path.join(path, n), encoding="utf-8")))
     db = {n[:-4]: rd(n) for n in ["suppliers.csv", "components.csv", "products.csv", "bom.csv",
@@ -72,16 +90,16 @@ def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_s
     for p in open_pos.values():
         if p.get("fixed"):
             continue
-        p["arrival"] = _d(p["promised_date"])
+        p["arrival"] = working_day(_d(p["promised_date"]))
         p["qty_eff"] = int(p["qty"])
         p["evidence"] = [f"purchase_orders:{p['po_id']}"]
         if mode == "learned":
             m = mem[p["supplier_id"]]
-            p["arrival"] = _d(p["order_date"]) + timedelta(days=lead_time(p["supplier_id"], m["announced"]))
+            p["arrival"] = working_day(_d(p["order_date"]) + timedelta(days=lead_time(p["supplier_id"], m["announced"])))
             p["evidence"].append(f"supplier_reliability:{p['supplier_id']} (announced {m['announced']} d, actual {m['real_mean']} ± {m['std']} d over {m['n']} deliveries, lead time used {m['typical']} d)")
     for i, x in enumerate(extra_pos or []):
         open_pos[f"SIM-{i}"] = {"po_id": f"SIM-{i}", "component_id": x["component_id"], "qty": x["qty"],
-                                "qty_eff": int(x["qty"]), "arrival": x["arrival"], "supplier_id": x.get("supplier_id", ""),
+                                "qty_eff": int(x["qty"]), "arrival": working_day(x["arrival"]), "supplier_id": x.get("supplier_id", ""),
                                 "evidence": [f"simulation:{x.get('label', 'simulated order')}"]}
     demand_mult = {}
     for pid, f in (demand_scale or {}).items():
@@ -92,9 +110,9 @@ def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_s
         if t == "supplier_delay" and pl["po_id"] in open_pos and not open_pos[pl["po_id"]].get("fixed"):
             p = open_pos[pl["po_id"]]
             if mode == "learned":
-                p["arrival"] += timedelta(days=round(pl["announced_delay_days"] * mem[p["supplier_id"]]["ratio"]))
+                p["arrival"] = working_day(p["arrival"] + timedelta(days=round(pl["announced_delay_days"] * mem[p["supplier_id"]]["ratio"])))
             else:
-                p["arrival"] = _d(pl["new_promised_date"])
+                p["arrival"] = working_day(_d(pl["new_promised_date"]))
             p["evidence"].append(f"events:{e['event_id']}")
         elif t == "sellout_spike" and mode != "naive":
             for w in pl["weeks_affected"]:
