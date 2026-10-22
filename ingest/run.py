@@ -72,9 +72,9 @@ def bodacc_loop():
             state["bodacc"]["emitted_total"] += sent
         except Exception:
             record_error("bodacc")
-        refresh_views()
         finally:
             sink.close()
+        refresh_views()
         time.sleep(BODACC_EVERY_MIN * 60)
 
 
