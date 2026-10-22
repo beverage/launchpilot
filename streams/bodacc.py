@@ -93,8 +93,9 @@ def parse_json_field(value):
 def to_event(notice, activity_code):
     judgment = parse_json_field(notice.get("jugement"))
     siren = (notice.get("registre") or [""])[0]
+    # The judgment type only: the free-text complement names court-appointed people and addresses,
+    # which a public demo shouldn't display
     procedure = judgment.get("nature") or notice.get("familleavis_lib")
-    detail = (judgment.get("complementJugement") or "").split(" - ")[0].strip()
     published = notice.get("dateparution")
     return {
         "event_id": f"BOD-{notice['id']}",
@@ -106,7 +107,7 @@ def to_event(notice, activity_code):
             "company_name": notice.get("commercant"),
             "activity_code": activity_code,
             "activity_label": SECTOR.get(activity_code),
-            "procedure": f"{procedure}: {detail}" if detail and detail != procedure else procedure,
+            "procedure": procedure,
             "procedure_family": judgment.get("famille") or notice.get("familleavis_lib"),
             "court": notice.get("tribunal"),
             "judgment_date": judgment.get("date"),
