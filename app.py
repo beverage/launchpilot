@@ -181,7 +181,7 @@ with tab_launch:
         for a in alerts[:6]:
             icon, lab = SEV.get(a["severity"], ("⚪", a["severity"]))
             with st.container(border=True):
-                st.markdown(S["alert_line"].format(icon=icon, label=lab, component=T.comp_label(a["item_id"]), week=a["predicted_stockout_week"]))
+                st.markdown(S["alert_line"].format(icon=icon, label=lab, component=T.comp_label(a["item_id"]), week=a["predicted_stockout_week"] or S["no_week"]))
                 st.write(a["explanation"])
                 st.caption(S["alert_source"].format(source=a["source"], event=a.get("trigger_event_id"), confidence=a.get("confidence") or "—"))
                 with st.expander(S["evidence"]):
@@ -233,6 +233,8 @@ with tab_mem:
         tooltip=[SUPP, MEAS, DAYS])
     labels = chart.mark_text(align="left", dx=4, color="#333").encode(text=alt.Text(f"{DAYS}:Q", format=".0f"))
     st.altair_chart((chart + labels).properties(height=320), width="stretch")
+    for m in T.demo_mappings():
+        st.caption(S["demo_mapping_caption"].format(supplier=m["name"], siren=T.siren_pretty(m["siren"])))
     sql = store.supplier_memory_sql()
     if sql:
         st.markdown(S["memory_sql"])
