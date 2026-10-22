@@ -83,7 +83,7 @@ PRODUCTS = [
      {"CMP-FLA-30":1, "CMP-POM-01":1, "CMP-FLA-50":1, "CMP-COF-NOEL":1}),
 ]
 CHANNELS = {"eshop":0.35, "selective_retail":0.45, "pharmacy":0.20}
-SUBCONTRACTORS = [("FAC-01", "Laboratoire Val de Loire", 5500), ("FAC-02", "Cosmétiques Normandie", 3000)]
+SUBCONTRACTORS = [("FAC-01", "Laboratoire Val de Loire", 9000), ("FAC-02", "Cosmétiques Normandie", 3000)]
 # Which contract manufacturer fills each product (capacity check, capacity.py): serums and the gift set at the lab that
 # handles airless pumps, creams in jars at the other. Written to products.csv only, so no random draw moves.
 FILLED_BY = {"PRD-SER-ECL": "FAC-01", "PRD-SER-NUI": "FAC-01", "PRD-COF-NOEL": "FAC-01",
