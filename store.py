@@ -116,7 +116,10 @@ class PgStore(MemStore):
                         cp.write(open(path, "rb").read())
 
     def reset(self):
-        self._q("TRUNCATE decisions, scenarios, alerts, events, agent_runs RESTART IDENTITY CASCADE", fetch=False)
+        """Clears the recorded scenario (EV- ids) and the agents' outputs. Live events from the pollers survive and are re-queued."""
+        self._q("TRUNCATE decisions, scenarios, alerts, agent_runs RESTART IDENTITY CASCADE", fetch=False)
+        self._q("DELETE FROM events WHERE event_id LIKE 'EV-%'", fetch=False)
+        self._q("UPDATE events SET processed = FALSE WHERE event_id NOT LIKE 'EV-%'", fetch=False)
 
     def add_event(self, e):
         self._q("INSERT INTO events (event_id, ts, event_type, payload) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",

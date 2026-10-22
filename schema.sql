@@ -2,7 +2,7 @@
 -- Marque fictive : Maison Aurore. Données 100 % synthétiques.
 
 -- ========== Données de base ==========
-CREATE TABLE suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
   supplier_id      TEXT PRIMARY KEY,
   name             TEXT NOT NULL,
   category         TEXT NOT NULL,          -- flacon, pompe, etui, coffret, formule
@@ -11,7 +11,7 @@ CREATE TABLE suppliers (
   unit_cost_eur    NUMERIC(10,3) NOT NULL
 );
 
-CREATE TABLE components (
+CREATE TABLE IF NOT EXISTS components (
   component_id     TEXT PRIMARY KEY,
   name             TEXT NOT NULL,
   category         TEXT NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE components (
   alt_supplier_id  TEXT REFERENCES suppliers(supplier_id)
 );
 
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   product_id       TEXT PRIMARY KEY,
   name             TEXT NOT NULL,
   family           TEXT NOT NULL,          -- soin, parfum, maquillage, coffret
@@ -29,21 +29,21 @@ CREATE TABLE products (
   launch_week      INT                     -- semaine ISO de mise en marché
 );
 
-CREATE TABLE bom (                         -- nomenclature : produit fini -> composants
+CREATE TABLE IF NOT EXISTS bom (                         -- nomenclature : produit fini -> composants
   product_id       TEXT REFERENCES products(product_id),
   component_id     TEXT REFERENCES components(component_id),
   qty_per_unit     NUMERIC(6,2) NOT NULL,
   PRIMARY KEY (product_id, component_id)
 );
 
-CREATE TABLE subcontractors (              -- façonniers
+CREATE TABLE IF NOT EXISTS subcontractors (              -- façonniers
   subcontractor_id TEXT PRIMARY KEY,
   name             TEXT NOT NULL,
   weekly_capacity_units INT NOT NULL
 );
 
 -- ========== Données transactionnelles ==========
-CREATE TABLE sales_history (               -- ventes hebdo par canal
+CREATE TABLE IF NOT EXISTS sales_history (               -- ventes hebdo par canal
   week             DATE NOT NULL,          -- lundi de la semaine
   product_id       TEXT REFERENCES products(product_id),
   channel          TEXT NOT NULL,          -- eshop, distributeur_selectif, pharmacie
@@ -51,7 +51,7 @@ CREATE TABLE sales_history (               -- ventes hebdo par canal
   PRIMARY KEY (week, product_id, channel)
 );
 
-CREATE TABLE forecasts (
+CREATE TABLE IF NOT EXISTS forecasts (
   week             DATE NOT NULL,
   product_id       TEXT REFERENCES products(product_id),
   qty              INT NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE forecasts (
   PRIMARY KEY (week, product_id, version)
 );
 
-CREATE TABLE inventory (                   -- photo de stock à date
+CREATE TABLE IF NOT EXISTS inventory (                   -- photo de stock à date
   snapshot_date    DATE NOT NULL,
   item_id          TEXT NOT NULL,          -- product_id ou component_id
   item_type        TEXT NOT NULL,          -- product / component
@@ -67,7 +67,7 @@ CREATE TABLE inventory (                   -- photo de stock à date
   PRIMARY KEY (snapshot_date, item_id)
 );
 
-CREATE TABLE purchase_orders (             -- commandes packaging (historique + en cours)
+CREATE TABLE IF NOT EXISTS purchase_orders (             -- commandes packaging (historique + en cours)
   po_id            TEXT PRIMARY KEY,
   supplier_id      TEXT REFERENCES suppliers(supplier_id),
   component_id     TEXT REFERENCES components(component_id),
@@ -79,7 +79,7 @@ CREATE TABLE purchase_orders (             -- commandes packaging (historique + 
 );
 
 -- ========== Flux & mémoire ==========
-CREATE TABLE events (                      -- miroir du flux Kafka (et repli)
+CREATE TABLE IF NOT EXISTS events (                      -- miroir du flux Kafka (et repli)
   event_id         TEXT PRIMARY KEY,
   ts               TIMESTAMP NOT NULL,
   event_type       TEXT NOT NULL,          -- supplier_delay, sellout_spike, capacity_drop, po_confirmed, noise
@@ -103,7 +103,7 @@ WHERE po.status = 'delivered'
 GROUP BY s.supplier_id, s.name, s.announced_lead_time_days;
 
 -- ========== Sorties des agents ==========
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
   alert_id         SERIAL PRIMARY KEY,
   created_at       TIMESTAMP DEFAULT NOW(),
   source           TEXT NOT NULL,          -- baseline / agent
@@ -116,7 +116,7 @@ CREATE TABLE alerts (
   explanation      TEXT
 );
 
-CREATE TABLE scenarios (
+CREATE TABLE IF NOT EXISTS scenarios (
   scenario_id      SERIAL PRIMARY KEY,
   alert_id         INT REFERENCES alerts(alert_id),
   label            TEXT NOT NULL,
@@ -127,7 +127,7 @@ CREATE TABLE scenarios (
   evidence_rows    JSONB                   -- ex. [{"table":"purchase_orders","id":"PO-0042"}]
 );
 
-CREATE TABLE decisions (
+CREATE TABLE IF NOT EXISTS decisions (
   decision_id      SERIAL PRIMARY KEY,
   decided_at       TIMESTAMP DEFAULT NOW(),
   alert_id         INT REFERENCES alerts(alert_id),
@@ -137,7 +137,7 @@ CREATE TABLE decisions (
 );
 
 -- Traces d'agents (utile pour la preuve et le debug)
-CREATE TABLE agent_runs (
+CREATE TABLE IF NOT EXISTS agent_runs (
   run_id           SERIAL PRIMARY KEY,
   started_at       TIMESTAMP DEFAULT NOW(),
   agent            TEXT NOT NULL,
