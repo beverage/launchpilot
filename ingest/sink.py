@@ -8,6 +8,7 @@ on Kafka being up.
 
 The events table and its rules are the contract in docs/INPUT-STREAMS.md.
 """
+import base64
 import json
 import os
 import re
@@ -39,9 +40,18 @@ def clamp_ts(ts):
     return min(ts, now) if ts else now
 
 
+def _pem(value):
+    """Accepts PEM text, or PEM base64-encoded on one line (Runtime rejects
+    newlines in variables, so certificates may arrive that way)."""
+    value = value.strip()
+    if "-----BEGIN" not in value:
+        value = base64.b64decode(value).decode()
+    return value
+
+
 def _pem_file(env_name):
     f = tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False)
-    f.write(os.environ[env_name])
+    f.write(_pem(os.environ[env_name]))
     f.close()
     os.chmod(f.name, 0o600)
     return f.name
@@ -69,9 +79,12 @@ def pg_connect():
     if not m:
         raise ValueError("DATABASE_URL is not a postgres:// URI")
     user, password, host, port, dbname = m.groups()
+    # Verify the server against the project CA when we have it (PEM locally, base64 on Runtime)
     ssl = {"sslmode": "require"}
-    if os.environ.get("DATABASE_CA_CERT"):
-        ssl = {"sslmode": "verify-full", "sslrootcert": _pem_file("DATABASE_CA_CERT")}
+    for ca_var in ("DATABASE_CA_CERT", "PROJECT_CA_CERT"):
+        if os.environ.get(ca_var):
+            ssl = {"sslmode": "verify-full", "sslrootcert": _pem_file(ca_var)}
+            break
     return psycopg.connect(host=host, port=int(port), user=user, password=password, dbname=dbname, **ssl)
 
 
