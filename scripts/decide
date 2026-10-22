@@ -1,0 +1,22 @@
+#!/bin/sh
+# Append a timestamped decision to DECISIONS.md, Paris time:
+#   scripts/decide "Cut C2 · the consumer is not ready by 13:30 · Imène"
+set -eu
+
+text=$*
+case $text in
+  *' · '*' · '*) ;;
+  *)
+    echo 'usage: scripts/decide "decision · why · who"' >&2
+    echo 'all three parts, separated by " · "' >&2
+    exit 1
+    ;;
+esac
+
+file="$(dirname "$0")/../DECISIONS.md"
+# Start on a fresh line if the file does not end with one
+[ -z "$(tail -c 1 "$file")" ] || printf '\n' >> "$file"
+
+line="- $(TZ=Europe/Paris date +%H:%M) · $text"
+printf '%s\n' "$line" >> "$file"
+echo "logged: $line"

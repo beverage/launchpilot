@@ -1,0 +1,2 @@
+# DECISIONS.md is append-only: when two branches both add lines, keep both instead of conflicting
+DECISIONS.md merge=union

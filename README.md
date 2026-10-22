@@ -16,3 +16,4 @@ Built at the Accel AI Innovate hackathon, Paris, 22 October 2026. Deployed on Ai
 
 - Work on short branches; merge to `main` only when the demo journey still runs.
 - Secrets live in `.env.local`, which is gitignored. Never commit keys.
+- Log every call in [DECISIONS.md](DECISIONS.md) with `scripts/decide "decision · why · who"`; who is doing what lives in the [plan's task board](docs/PLAN.md#workstreams). Agents follow [AGENTS.md](AGENTS.md).

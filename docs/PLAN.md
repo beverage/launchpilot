@@ -4,11 +4,11 @@ Reconciles the team brief's task split with the kickoff evaluation ([EVALUATION.
 
 ## Decisions so far
 
-- One shared public repo, this one, running on Alex's Aiven project (PostgreSQL, Runtime, Kafka if used). The kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) is the source of the port and stays deployed as the fallback demo.
-- The kit's logic is ported as-is first, with its commit history, then improved on branches. `main` must always run the demo journey.
-- Work is split by folder so nobody steps on anyone: `streams/` and `ingest/` plus the Runtime deploy on one side; app, agents, projection, generator, evaluation and `schema.sql` on the other. Imène owns the pitch: slide, script, backup video.
+Moved to [DECISIONS.md](../DECISIONS.md) at 10:36: one line per call with its why, append-only. Log new ones with `scripts/decide "decision · why · who"`.
 
 ## Workstreams
+
+This table is the task board. Status starts with one of `todo`, `doing`, `review` (with the PR link), `done` or `cut`, followed by a few words if useful. Claim a task before starting it (your name in Owner, `doing`). Change this table on `main` in its own small commit, never on a feature branch: the rows sit next to each other, so two branches editing them conflict, and a docs-only commit cannot break the journey. A cut also gets a line in DECISIONS.md. New work gets a row with the next number in its workstream.
 
 | Id | Task | Done when | Priority | Owner | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -50,6 +50,8 @@ Cut order if something slips: C2, A4, C4, B3, C1.
 - Every number on screen comes from a tool; every alert cites rows. Keep the rules fallback working when the API or the database is down.
 
 ## Open decisions
+
+When one is settled, log it in DECISIONS.md and delete it here.
 
 - Pitch language and presenter. The UI is French; the jury is probably English-speaking.
 - Fictional suppliers only, or an optional real SIREN per supplier for the registry stream (see the mapping note in INPUT-STREAMS.md)?
