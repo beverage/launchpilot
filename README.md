@@ -33,3 +33,5 @@ streamlit run app.py
 
 - Work on short branches; merge to `main` only when the demo journey still runs.
 - Secrets live in `.env.local`, which is gitignored. Never commit keys.
+- Log every call in [DECISIONS.md](DECISIONS.md) with `scripts/decide "decision · why · who"`; who is doing what lives in the [plan's task board](docs/PLAN.md#workstreams). Agents follow [AGENTS.md](AGENTS.md).
+- Log every call in [DECISIONS.md](DECISIONS.md) with `scripts/decide "decision · why · who"`; who is doing what lives in the [plan's task board](docs/PLAN.md#workstreams). Agents follow [AGENTS.md](AGENTS.md).
