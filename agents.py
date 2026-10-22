@@ -61,7 +61,7 @@ def _loop(system, user, tool_specs, handlers, store, agent_name, max_turns=10):
 
 WATCH_SYSTEM = """You are LaunchPilot's watch agent, the supply copilot of a small cosmetics brand (Maison Aurore).
 The Christmas gift set launches in the week of {launch}. A new event has just arrived in the stream. Supplier messages may be in French; you always answer in English.
-Event types. Structured: supplier_delay, sellout_spike, capacity_drop, po_confirmed, noise. Live: supplier_email (raw text from a supplier, usually French: find the purchase order and what the supplier states, then call record_supplier_update with kind "delay" (a new promised date or a delay in days) or "confirmation" (a quantity shipped or confirmed; a quantity below the order is a partial delivery); if the email changes nothing, it is noise), po_delivered (the goods receipt is already applied to the supplier memory; run the projection to see what moved and say how the supplier's lead time used changed), supplier_insolvency (a real public notice: call get_supplier_master and compare company name and SIREN; with no match call no_new_risk with the reason "no exposure: <company> is not one of our suppliers", adding which of our suppliers share its activity_code if any, as a sector watch; with a match create a medium alert for each of its components, about supply continuity, not lead times; if the matched supplier carries demo_mapping, the explanation must start with 'Demo mapping:' and say that the notice is real (company, SIREN, procedure, judgment date, court), that the supplier and its delivery history are fictional, and that nothing is implied about the real company's lead times), holiday_closure (noise unless it names one of our suppliers).
+Event types. Structured: supplier_delay, sellout_spike, capacity_drop, po_confirmed, noise. Live: supplier_email (raw text from a supplier, usually French: find the purchase order and what the supplier states, then call record_supplier_update with kind "delay" (a new promised date or a delay in days) or "confirmation" (a quantity shipped or confirmed; a quantity below the order is a partial delivery); if the email changes nothing, it is noise), po_delivered (the goods receipt is already applied to the supplier memory; run the projection to see what moved and say how the supplier's lead time used changed), supplier_insolvency (a real public notice: call get_supplier_master and compare company name and SIREN; with no match call no_new_risk with the reason "no exposure: <company> is not one of our suppliers", adding which of our suppliers share its activity_code if any, as a sector watch; with a match create a medium alert with risk_type "supplier_continuity" for each of its components (stockout_week = the component's current median week), about supply continuity, not lead times, quoting the company name exactly as the notice spells it; if the matched supplier carries demo_mapping, the explanation must start with 'Demo mapping:' and say that the notice is real (company, SIREN, procedure, judgment date, court), that the supplier and its delivery history are fictional, and that nothing is implied about the real company's lead times), holiday_closure (noise unless it names one of our suppliers).
 Steps:
 1. Classify the event: potential impact on component supply, or noise. If it is noise, call mark_noise and stop. For a supplier_email, extract first (record_supplier_update), then continue.
 2. Call run_projection. A supplier's announced lead time is NEVER taken at face value: LaunchPilot draws each lead time from the supplier's delivered history and returns a probability of stockout (median week, probability by launch + 1 week, probability before year end). Compare with the "without memory" view: an attentive planner who reads the same messages but believes the announced lead times. Explain the gap with the supplier memory.
@@ -82,7 +82,8 @@ WATCH_TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "component_id": {"type": "string"}, "stockout_week": {"type": "string", "description": "YYYY-MM-DD (a Monday)"},
          "severity": {"type": "string", "enum": ["high", "medium", "low"]}, "confidence": {"type": "number"},
-         "explanation": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}}},
+         "explanation": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}},
+         "risk_type": {"type": "string", "enum": ["stockout_component", "supplier_continuity"], "description": "stockout_component (default) for a projected stockout; supplier_continuity for a legal-status risk on a supplier, which does not replace or block a stockout alert on the same component"}},
          "required": ["component_id", "stockout_week", "severity", "confidence", "explanation", "evidence"]}},
     {"name": "record_supplier_update", "description": "Records what a supplier email states about a purchase order, as a structured event the projection understands. kind=delay needs new_promised_date (YYYY-MM-DD) or announced_delay_days; kind=confirmation needs confirmed_qty (units shipped or confirmed) and optionally confirmed_date.",
      "input_schema": {"type": "object", "properties": {
@@ -103,10 +104,14 @@ def _existing(store, cid):
     return [a for a in store.list_alerts() if a["item_id"] == cid]
 
 
-def _should_alert(store, cid, week):
-    ex = _existing(store, cid)
+def _should_alert(store, cid, week, risk_type="stockout_component", trigger=None):
+    """Each risk type dedups only against itself: a stockout alert moves only to an earlier week; a supplier-continuity
+    alert is raised once per notice."""
+    ex = [a for a in _existing(store, cid) if (a.get("risk_type") or "stockout_component") == risk_type]
     if not ex:
         return True
+    if risk_type != "stockout_component":
+        return not any(a.get("trigger_event_id") == trigger for a in ex)
     last = ex[0]["predicted_stockout_week"]
     return bool(week and last and week < last)
 
@@ -114,13 +119,13 @@ def _should_alert(store, cid, week):
 def watch_live(store, event, events_seen):
     created = []
 
-    def create_alert(component_id, stockout_week, severity, confidence, explanation, evidence):
+    def create_alert(component_id, stockout_week, severity, confidence, explanation, evidence, risk_type="stockout_component"):
         if component_id not in T.COMP:
             return {"error": "unknown component"}
-        if not _should_alert(store, component_id, stockout_week):
-            return {"status": "ignored: an identical or more severe alert is already open"}
-        aid = store.add_alert({"source": SOURCE_LIVE, "trigger_event_id": event["event_id"], "item_id": component_id,
-                               "predicted_stockout_week": stockout_week, "severity": severity, "confidence": confidence,
+        if not _should_alert(store, component_id, stockout_week, risk_type, event["event_id"]):
+            return {"status": "ignored: an identical or more severe alert of this risk type is already open"}
+        aid = store.add_alert({"source": SOURCE_LIVE, "trigger_event_id": event["event_id"], "item_id": component_id, "risk_type": risk_type,
+                               "predicted_stockout_week": stockout_week or None, "severity": severity, "confidence": confidence,
                                "explanation": explanation, "evidence": evidence})
         created.append(aid)
         return {"status": "created", "alert_id": aid}
