@@ -167,8 +167,8 @@ for cid, stock_now in _stock_now.items():
 # Past Coffrets Prestige deliveries were boxes for earlier seasonal gift sets: relabel them by delivery date so the 2026
 # Christmas box has no purchase history. Done after the loop (no random draw moves); these components have no BOM row and no
 # stock row, so the projection never sees them and the supplier memory, which reads dates per supplier, is unchanged.
-PAST_SETS = [("2025-09-01", "CMP-COF-ETE-25", "Coffret Été 2025"), ("2025-12-01", "CMP-COF-NOEL-25", "Coffret Noël 2025"),
-             ("2026-06-15", "CMP-COF-FDM-26", "Coffret Fête des Mères 2026"), (None, "CMP-COF-ETE-26", "Coffret Été 2026")]
+PAST_SETS = [("2025-09-01", "CMP-COF-ETE-25", "Summer 2025 gift box"), ("2025-12-01", "CMP-COF-NOEL-25", "Christmas 2025 gift box"),
+             ("2026-06-15", "CMP-COF-FDM-26", "Mother's Day 2026 gift box"), (None, "CMP-COF-ETE-26", "Summer 2026 gift box")]
 for p_ in pos:
     if p_["component_id"] == "CMP-COF-NOEL" and p_["status"] == "delivered":
         for cutoff, cid, _ in PAST_SETS:
