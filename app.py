@@ -177,6 +177,12 @@ with tab_launch:
                    "supplier_insolvency": lambda: S["feed_insolvency"].format(company=p.get("company_name", ""), procedure=p.get("procedure", "")),
                    }.get(e["event_type"], lambda: S["feed_other"].format(kind=e["event_type"]))()
             st.markdown(f"`{e['ts'][:10]}` **{EVENT_KIND.get(e['event_type'], '•')}** — {det}")
+            if e["event_type"] == "supplier_email":            # the raw text the agent read, for the room to see
+                with st.expander(S["feed_email_open"]):
+                    st.caption(S["feed_email_meta"].format(from_name=p.get("from_name", ""), from_email=p.get("from_email", ""),
+                                                           received_at=str(p.get("received_at", ""))[:16].replace("T", " "), language=p.get("language", "")))
+                    st.markdown(f"**{p.get('subject', '')}**")
+                    st.text(p.get("body", ""))
 
         st.subheader(S["alerts_title"])
         alerts, _seen_items = [], set()
