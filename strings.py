@@ -82,6 +82,8 @@ EN = {
                    "supplier_email": "✉️ Supplier email (live)", "po_delivered": "📦 Goods receipt (live)",
                    "supplier_insolvency": "⚖️ Insolvency notice, BODACC (live)", "holiday_closure": "🏖️ Closure (live)"},
     "feed_email": "{from_name}: {subject}",
+    "feed_email_open": "Read the email",
+    "feed_email_meta": "From {from_name} <{from_email}> · received {received_at} · {language}",
     "feed_delivery": "{po} received: {qty} units{partial}", "feed_partial": " (partial)",
     "feed_insolvency": "{company}: {procedure}",
     "feed_other": "{kind}",
