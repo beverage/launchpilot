@@ -40,16 +40,16 @@ emails = [
          f"actuelle de l'atelier, la date de mise à disposition passe du {FR(pos['PO-0064']['promised_date'])} au {FR(e2['payload']['new_promised_date'])}, "
          "soit deux semaines de plus que prévu. Le planning est confirmé de notre côté.\n\nCordialement,\nSandrine Lefèvre\nADV – Pompes Atlas",
          mirrors="EV-002", supplier_id="SUP-POM"),
-    mail(3, e5["ts"], "Marc Dubois", "m.dubois@cartonnages-seine.example",
+    mail(3, "2026-09-18T11:00:00", "Marc Dubois", "m.dubois@cartonnages-seine.example",   # before EV-005 (26 Sep): the email is the first word of the delay
          "PO-0069 – petit décalage d'expédition",
          f"Bonjour,\n\nPetit décalage sur votre commande d'étuis PO-0069 : l'expédition partira le {FR(e5['payload']['new_promised_date'])} "
          f"au lieu du {FR(pos['PO-0069']['promised_date'])}, trois jours de retard dus à un contrôle qualité supplémentaire sur le vernis. Rien d'autre à signaler.\n\n"
          "Bien à vous,\nMarc Dubois – Cartonnages de Seine", mirrors="EV-005", supplier_id="SUP-ETU"),
     mail(4, e19["ts"], "Sandrine Lefèvre", "s.lefevre@pompes-atlas.example",
-         "Expédition partielle – commande PO-0063",
-         f"Bonjour Claire,\n\nNous avons expédié ce jour 12 000 pompes airless 30 ml sur les 20 000 de la commande PO-0063. "
-         "Le solde de 8 000 pièces est bloqué par une rupture de matière chez notre fournisseur de ressorts ; nous reviendrons vers vous avec une date dès que possible. "
-         "Le transporteur vous communiquera le créneau de livraison.\n\nCordialement,\nSandrine Lefèvre\nADV – Pompes Atlas",
+         "Livraison partielle – commande PO-0063",
+         "Bonjour Claire,\n\nSuite à une rupture de matière chez notre fournisseur de ressorts, nous ne pourrons vous livrer que 12 000 pompes airless 30 ml "
+         "sur les 20 000 de la commande PO-0063. Le solde de 8 000 pièces reste bloqué ; nous reviendrons vers vous avec une date dès que possible. "
+         "Le transporteur vous communiquera le créneau de livraison des 12 000 pièces.\n\nCordialement,\nSandrine Lefèvre\nADV – Pompes Atlas",
          mirrors="EV-019", supplier_id="SUP-POM"),
     mail(5, "2026-10-06T14:30:00", "Isabelle Garnier", "i.garnier@verrerie-lumiere.example",
          "Changement d'interlocuteur commercial",

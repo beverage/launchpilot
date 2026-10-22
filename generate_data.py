@@ -48,6 +48,8 @@ SUPPLIERS = [
   ("SUP-ETU", "Cartonnages de Seine","etui",   28,  5000, 0.09, 29, 3),
   ("SUP-COF", "Coffrets Prestige",  "coffret", 35,  3000, 1.35, 44, 6),   # dérive modérée
 ]
+# NAF activity codes, the keys the BODACC sector watch (streams/bodacc.py) filters on; no SIREN: the suppliers are fictional
+ACTIVITY = {"SUP-FLA": "23.13Z", "SUP-POM": "22.29A", "SUP-POM-B": "22.29A", "SUP-ETU": "17.21B", "SUP-COF": "17.21B"}
 COMPONENTS = [
   ("CMP-FLA-30", "30 ml glass bottle",      "flacon",  "SUP-FLA", None),
   ("CMP-FLA-50", "50 ml glass jar",         "flacon",  "SUP-FLA", None),
@@ -129,6 +131,28 @@ for sid, _, cat, ann, moq, *_ in SUPPLIERS:
         rec, actual = new_po(sid, rng.choice(cids), moq * rng.choice([1, 1, 2]), od, True)
         if actual >= SIM_TODAY:  # garder l'historique strictement passé
             pos.pop(); po_n -= 1
+
+# Rebalance delivered quantities so the purchase history matches 78 weeks of consumption plus the stock on hand, with an
+# opening stock of a few weeks. Quantities only, after every random draw: lead times (the memory) and the proof do not move.
+# Pumps and the gift box are left as generated (see docs/EVALUATION.md, section 8).
+_bom_hist = {pr[0]: pr[7] for pr in PRODUCTS}
+_consumed = {}
+for w, pid, ch, q in sales:
+    for cid, per in _bom_hist[pid].items():
+        _consumed[cid] = _consumed.get(cid, 0) + q * per
+_stock_now = {"CMP-FLA-30": 32000, "CMP-FLA-50": 26000, "CMP-ETU-01": 24000, "CMP-ETU-02": 22000}
+OPENING_WEEKS = 5
+for cid, stock_now in _stock_now.items():
+    hist = [p_ for p_ in pos if p_["component_id"] == cid and p_["status"] == "delivered"]
+    if not hist:
+        continue
+    weekly = _consumed.get(cid, 0) / HISTORY_WEEKS
+    target = _consumed.get(cid, 0) + stock_now - OPENING_WEEKS * weekly
+    moq = sup[hist[0]["supplier_id"]][4]
+    base = max(moq, int(target // len(hist) // moq) * moq)            # floor to MOQ multiples: received never exceeds target
+    extra = int((target - base * len(hist)) // moq)                    # spread the remainder, one MOQ at a time, over the first orders
+    for i, p_ in enumerate(hist):
+        p_["qty"] = base + (moq if i < extra else 0)
 
 # commandes ouvertes pour couvrir le lancement (dates promises OK, réalité parfois non)
 OPEN = [
@@ -253,8 +277,8 @@ def write(name, header, rows):
     with open(os.path.join(args.out, name), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f); w.writerow(header); w.writerows(rows)
 
-write("suppliers.csv", ["supplier_id","name","category","announced_lead_time_days","moq","unit_cost_eur"],
-      [s[:6] for s in SUPPLIERS])
+write("suppliers.csv", ["supplier_id","name","category","announced_lead_time_days","moq","unit_cost_eur","activity_code"],
+      [s[:6] + (ACTIVITY[s[0]],) for s in SUPPLIERS])
 write("components.csv", ["component_id","name","category","main_supplier_id","alt_supplier_id"], COMPONENTS)
 write("products.csv", ["product_id","name","family","price_eur","margin_rate","is_launch","launch_week"],
       [(p_[0], p_[1], p_[2], p_[3], p_[4], p_[5], 45 if p_[5] else "") for p_ in PRODUCTS])

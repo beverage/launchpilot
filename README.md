@@ -40,7 +40,7 @@ The baseline is honest: a planner who reads every message (new promised dates, c
 | Final dates wrong by more than one week | 23 | 8 |
 | False alarms | 0 | 0 |
 
-In the demo scenario the launch-week pump stockout (week of 9 November) is flagged on 1 October, 39 days ahead, with an 82% probability; the planner without memory places it on 21 December. Doing nothing puts 571 k€ of revenue at risk; the best costed option cuts it to 194 k€. All of this is a recorded scenario on synthetic data, and the app says so on screen. Method and caveats: [docs/EVALUATION.md](docs/EVALUATION.md).
+In the demo scenario the launch-week pump stockout (week of 9 November) is first dated 46 days ahead as a watch alert, then raised to critical on 1 October, 39 days ahead, with an 85% probability; the planner without memory places it on 21 December. Doing nothing puts 571 k€ of revenue at risk; the best costed option cuts it to 194 k€. All of this is a recorded scenario on synthetic data, and the app says so on screen. Method and caveats: [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ## Working in this repo
 

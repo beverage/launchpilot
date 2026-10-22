@@ -157,3 +157,6 @@ CREATE TABLE IF NOT EXISTS app_meta (
 
 -- Quantity actually received (set by live po_delivered events; NULL = full order)
 ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS delivered_qty INT;
+
+-- NAF activity code of each supplier, the key the BODACC sector watch filters on (no SIREN: the suppliers are fictional)
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS activity_code TEXT;

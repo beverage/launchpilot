@@ -249,5 +249,5 @@ def events_seen(store):
 
 def get_supplier_master():
     """Our suppliers, for exposure checks against public notices."""
-    return [{"supplier_id": s["supplier_id"], "name": s["name"], "category": s["category"], "siren": s.get("siren") or None}
-            for s in DB["suppliers"]]
+    return [{"supplier_id": s["supplier_id"], "name": s["name"], "category": s["category"],
+             "activity_code": s.get("activity_code") or None, "siren": s.get("siren") or None} for s in DB["suppliers"]]
