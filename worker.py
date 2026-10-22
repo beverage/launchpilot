@@ -13,11 +13,21 @@ import agents as A
 from strings import EN as S
 
 
-def drain(store, clock_ts, live, limit=50):
+def drain(store, clock_ts, live, limit=50, selective=False):
+    """selective=True keeps the live agent for the rows where it adds something (supplier emails, insolvency notices that
+    match one of our suppliers) and uses rules for the rest, so a long fast-forward stays quick."""
     runs = []
     for row in store.list_unprocessed(clock_ts)[:limit]:
-        runs.append(process_live(store, row, live))
+        use_live = live and (not selective or row["event_type"] == "supplier_email"
+                             or (row["event_type"] == "supplier_insolvency" and matches_supplier(row["payload"])))
+        runs.append(process_live(store, row, use_live))
     return runs
+
+
+def matches_supplier(pl):
+    name = (pl.get("company_name") or "").strip().lower()
+    return any((pl.get("siren") and pl.get("siren") == s["siren"]) or name == s["name"].lower() or pl.get("supplier_id") == s["supplier_id"]
+               for s in T.get_supplier_master())
 
 
 def process_live(store, row, live):

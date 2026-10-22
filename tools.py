@@ -267,4 +267,7 @@ def demo_mappings():
 
 
 def components_of(supplier_id):
-    return [c["component_id"] for c in DB["components"] if supplier_id in (c["main_supplier_id"], c["alt_supplier_id"])]
+    """A supplier's components that matter today: with stock on hand or an open order (past-season boxes are excluded)."""
+    active = {r["item_id"] for r in DB["inventory"]} | {p["po_id"] and p["component_id"] for p in DB["purchase_orders"] if p["status"] == "open"}
+    return [c["component_id"] for c in DB["components"]
+            if supplier_id in (c["main_supplier_id"], c["alt_supplier_id"]) and c["component_id"] in active]
