@@ -180,9 +180,10 @@ with tab_launch:
 
         st.subheader(S["alerts_title"])
         alerts, _seen_items = [], set()
-        for x in store.list_alerts():          # only the latest alert per component
-            if x["item_id"] not in _seen_items:
-                alerts.append(x); _seen_items.add(x["item_id"])
+        for x in store.list_alerts():          # the latest alert per component and risk type (stockout, supplier continuity)
+            key = (x["item_id"], x.get("risk_type") or "stockout_component")
+            if key not in _seen_items:
+                alerts.append(x); _seen_items.add(key)
         alerts.sort(key=lambda x: (x["severity"] != "high", x["predicted_stockout_week"] or "9999"))
         if not alerts:
             st.caption(S["alerts_empty"])

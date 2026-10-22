@@ -61,7 +61,7 @@ def process_live(store, row, live):
                 for cid in T.components_of(hit["supplier_id"]):
                     if any(a["trigger_event_id"] == row["event_id"] and a["item_id"] == cid for a in store.list_alerts()):
                         continue
-                    created.append(store.add_alert({"source": A.SOURCE_RULES, "trigger_event_id": row["event_id"], "item_id": cid, "risk_type": "supplier_status",
+                    created.append(store.add_alert({"source": A.SOURCE_RULES, "trigger_event_id": row["event_id"], "item_id": cid, "risk_type": "supplier_continuity",
                                                     "predicted_stockout_week": proj.get(cid, {}).get("stockout_week_launchpilot"), "severity": "medium", "confidence": None,
                                                     "explanation": (S["status_alert"].format(supplier=hit["name"], procedure=pl.get("procedure"), judgment_date=pl.get("judgment_date"), component=T.comp_label(cid)) + " " + label).strip(),
                                                     "evidence": [f"events:{row['event_id']}", f"suppliers:{hit['supplier_id']}"] + ([pl["notice_url"]] if pl.get("notice_url") else [])}))
