@@ -69,6 +69,12 @@ EN = {
     "live_due": "⏭ Analyse live events due now ({n})", "live_due_help": "Supplier emails, goods receipts and public notices that arrived through the stream and are dated on or before the simulated date.",
     "spinner_live": "Analysing {n} live event(s)…",
     "superseded_note": "already applied from {twin}",
+    "demo_mapping_label": "Demo mapping: the BODACC notice is real ({company}, SIREN {siren}, {procedure}, judgment of {judgment_date}, {court}). "
+                          "{supplier} and its delivery history are fictional; nothing is implied about {company}'s lead times.",
+    "demo_mapping_caption": "Demo mapping: {supplier} carries SIREN {siren}, a real company in the same sector, so a real BODACC notice can be shown. "
+                            "The supplier and its delivery history are fictional; nothing is implied about the real company's lead times.",
+    "status_alert": "{supplier} entered {procedure} (judgment of {judgment_date}): supply-continuity risk on {component}.",
+    "no_week": "no stockout week, supplier status",
     "severity": {"high": ("🔴", "Critical"), "medium": ("🟠", "Watch"), "low": ("🟢", "Low")},
     "feed_delay": "{supplier} pushes {po} back by {days} d",
     "feed_spike": "{product}: sales ×{factor}",

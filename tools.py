@@ -250,4 +250,21 @@ def events_seen(store):
 def get_supplier_master():
     """Our suppliers, for exposure checks against public notices."""
     return [{"supplier_id": s["supplier_id"], "name": s["name"], "category": s["category"],
-             "activity_code": s.get("activity_code") or None, "siren": s.get("siren") or None} for s in DB["suppliers"]]
+             "activity_code": s.get("activity_code") or None, "siren": s.get("siren") or None,
+             **({"demo_mapping": "this fictional supplier carries a real company's SIREN for the demo; an alert on a matching notice must "
+                                 "start with 'Demo mapping:' and say the notice is real, the supplier and its delivery history fictional, "
+                                 "and that nothing is implied about the real company's lead times"} if s.get("siren") else {})}
+            for s in DB["suppliers"]]
+
+
+def siren_pretty(siren):
+    return f"{siren[:3]} {siren[3:6]} {siren[6:]}" if siren and len(siren) == 9 else (siren or "")
+
+
+def demo_mappings():
+    """Fictional suppliers mapped to a real SIREN for the demo (see the decision log)."""
+    return [{"supplier_id": s["supplier_id"], "name": s["name"], "siren": s["siren"]} for s in DB["suppliers"] if s.get("siren")]
+
+
+def components_of(supplier_id):
+    return [c["component_id"] for c in DB["components"] if supplier_id in (c["main_supplier_id"], c["alt_supplier_id"])]
