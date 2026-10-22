@@ -23,6 +23,16 @@ Abstract on purpose: no named customer, and both halves of the product, reacting
 
 ## The data layer in action
 
+**tl;dr.** Business events → Aiven for Apache Kafka → Aiven for PostgreSQL → Claude agents with SQL-backed tools → an alert that cites its rows; every delivery updates the supplier memory, so the next forecast already knows.
+
+- **In:** three live streams (supplier emails, goods receipts, real insolvency notices from BODACC), one Kafka topic each, bridged into PostgreSQL by an ingest app.
+- **Stored:** PostgreSQL holds the planning data (orders, stock, sales, forecasts, bills of materials), the events, and everything the agents produce: alerts, scenarios, decisions, traces.
+- **Used:** the agents react to each event by calling tools that query PostgreSQL (stock projection, supplier memory, open orders, costing), and every alert cites its rows.
+- **Learned:** each delivery updates a SQL view of how late each supplier really delivers, and the projection draws lead times from it.
+- **Runs:** five apps on Aiven Runtime; every Claude call goes through our gateway there, costed and logged.
+
+The long version, for the form:
+
 > LaunchPilot's agents fail without the data: with announced lead times alone, they place the launch-week pump stockout on 21 December instead of 9 November.
 >
 > **What the agents use.** A brand's planning data (suppliers, components, bills of materials, 78 weeks of sales by channel, forecasts, stock, 70 purchase orders with promised and actual dates) and three live streams: free-text supplier emails in French, goods receipts, and real insolvency notices from BODACC, the French official gazette, enriched with company-registry cards.
