@@ -33,7 +33,7 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 | C6 | Hero 5, real French public holidays from Nager.Date as HOL- events through Kafka (lp.holiday_closure) | HOL- rows in events, and the engine (A7) moves an arrival off a holiday | Should | streams side | cut 14:35 (Alex: "Forget the holiday poller"); the engine's built-in calendar (A7) holds the same holidays |
 | C7 | Order-book replay through Kafka (lp.channel_orders) from data/orders.jsonl | ORD- rows in events | Should | streams side | doing 14:45: topic lp.channel_orders created; deploying main (A4, A8) first, then replaying data/orders.jsonl |
 | D1 | Pitch slide: who, why now, proof, first users | Slide final | Must | Imène | from the brief |
-| D2 | Three-minute script and judge Q&A prep | Timed rehearsal under 3:00 | Must | Imène | from the brief |
+| D2 | Three-minute script and judge Q&A prep | Timed rehearsal under 3:00 | Must | Imène | doing: draft in [SCRIPT.md](SCRIPT.md) (Claude, test-data session, 14:45) for Imène to rehearse and amend; follows the SUBMISSION.md shot list |
 | D3 | Demo video: required by the form, not a backup (one end-to-end journey, MP4, three minutes at most; shot list in [SUBMISSION.md](SUBMISSION.md)) | MP4 uploaded to the form | Must | Imène | from the brief |
 | D4 | Submission form text fields: name, one-line pitch, data layer in action, GitHub and demo links | Fields filled on the form | Must | Alex | doing: drafts in [SUBMISSION.md](SUBMISSION.md) |
 | D5 | Evidence upload: screenshot of the proof exhibit (B3) and the cost and latency panel (C3) on the deployed build | Image uploaded to the form | Must | Alex | todo: unblocked, B3 and C3 are live since the 13:28 deploy |
