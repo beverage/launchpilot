@@ -21,6 +21,7 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 | B1 | English UI | No French on screen | Must | app side | from the brief |
 | B2 | Hero moments: announced-versus-actual chart, red pump alert, scenario cards | A first-time viewer gets it in 10 seconds | Must | designer, else app side | from the brief |
 | C4 | Real supplier-health stream from BODACC | A real notice appears as an event and the agent reports exposure | Should | streams side (producer), app side (consumer) | new, from the evaluation |
+| C5 | Test data that holds together: review section 8 of EVALUATION.md (volume, balance, calendar, join keys, random streams), then the generator changes it proposes | Imène approves or amends section 8, and its Must items have an owner | Should | Alex (Claude); review Imène | review: https://github.com/beverage/launchpilot/pull/1 |
 | C3 | Cost and latency per processed event on the proof tab | Numbers on screen | Should | app side | from the brief |
 | B3 | Proof chart | One glanceable exhibit, fair comparison | Should | app side | from the brief |
 | C1 | Route Claude through the sponsor's AI gateway | A live run goes through the gateway | Should | streams side | from the brief |
