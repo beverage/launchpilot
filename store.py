@@ -105,6 +105,19 @@ class MemStore:
     def supplier_memory_sql(self):
         return None
 
+    def run_stats(self):
+        """Per agent and mode: runs, median and worst latency, mean tokens; plus the number of events analysed."""
+        import statistics
+        groups = {}
+        for r in self.runs:
+            groups.setdefault((r["agent"], (r.get("tokens_in") or 0) > 0), []).append(r)
+        rows = [{"agent": a, "live": live, "runs": len(rs),
+                 "p50_ms": statistics.median(r["latency_ms"] for r in rs), "max_ms": max(r["latency_ms"] for r in rs),
+                 "avg_in": sum(r.get("tokens_in") or 0 for r in rs) / len(rs), "avg_out": sum(r.get("tokens_out") or 0 for r in rs) / len(rs),
+                 "sum_in": sum(r.get("tokens_in") or 0 for r in rs), "sum_out": sum(r.get("tokens_out") or 0 for r in rs)}
+                for (a, live), rs in sorted(groups.items())]
+        return {"rows": rows, "events_analysed": sum(1 for e in self.events if e["processed"])}
+
 
 class PgStore(MemStore):
     kind = "pg"
@@ -241,6 +254,15 @@ class PgStore(MemStore):
 
     def list_runs(self):
         return self._q("SELECT agent, latency_ms, tokens_in, tokens_out, started_at FROM agent_runs ORDER BY run_id")
+
+    def run_stats(self):
+        rows = self._q("""SELECT agent, (COALESCE(tokens_in, 0) > 0) AS live, COUNT(*) AS runs,
+                                 percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms, MAX(latency_ms) AS max_ms,
+                                 AVG(COALESCE(tokens_in, 0)) AS avg_in, AVG(COALESCE(tokens_out, 0)) AS avg_out,
+                                 SUM(COALESCE(tokens_in, 0)) AS sum_in, SUM(COALESCE(tokens_out, 0)) AS sum_out
+                          FROM agent_runs GROUP BY agent, (COALESCE(tokens_in, 0) > 0) ORDER BY agent, live""")
+        n = self._q("SELECT COUNT(*) AS n FROM events WHERE processed")[0]["n"]
+        return {"rows": [{k: (float(v) if k in ("p50_ms", "avg_in", "avg_out") else v) for k, v in r.items()} for r in rows], "events_analysed": n}
 
     def supplier_memory_sql(self):
         """La mémoire fournisseur telle que calculée par la vue SQL (preuve que la donnée vit dans Aiven)."""

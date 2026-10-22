@@ -271,3 +271,17 @@ def components_of(supplier_id):
     active = {r["item_id"] for r in DB["inventory"]} | {p["po_id"] and p["component_id"] for p in DB["purchase_orders"] if p["status"] == "open"}
     return [c["component_id"] for c in DB["components"]
             if supplier_id in (c["main_supplier_id"], c["alt_supplier_id"]) and c["component_id"] in active]
+
+
+# Anthropic list prices, USD per million tokens (input, output), as published on 6 October 2026. An estimate only:
+# the gateway's spend log is the authoritative figure when the app runs through it.
+PRICE_PER_MTOK = {"claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00), "claude-haiku-5-5": (0.10, 0.50),
+                  "claude-fable-5-1": (10.00, 50.00)}
+
+
+def cost_usd(tokens_in, tokens_out, model):
+    """Estimated cost of a run at list price, or None when the model's price is unknown."""
+    price = PRICE_PER_MTOK.get(model)
+    if not price:
+        return None
+    return (tokens_in or 0) / 1e6 * price[0] + (tokens_out or 0) / 1e6 * price[1]
