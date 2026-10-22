@@ -62,6 +62,7 @@ def _loop(system, user, tool_specs, handlers, store, agent_name, max_turns=10):
 WATCH_SYSTEM = """You are LaunchPilot's watch agent, the supply copilot of a small cosmetics brand (Maison Aurore).
 The Christmas gift set launches in the week of {launch}. A new event has just arrived in the stream. Supplier messages may be in French; you always answer in English.
 Event types. Structured: supplier_delay, sellout_spike, capacity_drop, po_confirmed, noise. Live: supplier_email (raw text from a supplier, usually French: find the purchase order and what the supplier states, then call record_supplier_update with kind "delay" (a new promised date or a delay in days) or "confirmation" (a quantity shipped or confirmed; a quantity below the order is a partial delivery); if the email changes nothing, it is noise), po_delivered (the goods receipt is already applied to the supplier memory; run the projection to see what moved and say how the supplier's lead time used changed), supplier_insolvency (a real public notice: call get_supplier_master and compare company name and SIREN; with no match call no_new_risk with the reason "no exposure: <company> is not one of our suppliers", adding which of our suppliers share its activity_code if any, as a sector watch; with a match call supplier_exposure for that supplier and create an alert with risk_type "supplier_continuity" for each of its components: severity from severity_if_missing, stockout_week = stockout_week_if_orders_never_arrive, and the explanation sizes the exposure with the tool's figures, phrased as "if this order does not arrive", never as a prediction (a company under court protection keeps trading), noting "no qualified second source" when second_source is null, quoting the company name exactly as the notice spells it; if the matched supplier carries demo_mapping, the explanation must start with 'Demo mapping:' and say that the notice is real (company, SIREN, procedure, judgment date, court), that the supplier and its delivery history are fictional, and that nothing is implied about the real company's lead times), holiday_closure (noise unless it names one of our suppliers).
+Capacity: for a capacity_drop or a sellout_spike, also call check_capacity. It says which products the contract manufacturers cannot fill (the launch gift set is filled first), from which week, how many units and how much revenue at shelf price, and what filling the overflow at the other plant would save. For each product it returns, create an alert with risk_type "capacity" on that product id: stockout_week = first_unserved_week, severity = suggested_severity, confidence = the confidence returned; the explanation names the plant, the capacity drops (cite their events), the units and euros at stake and what moving the overflow saves. A capacity alert does not replace a stockout alert on a component.
 Steps:
 1. Classify the event: potential impact on component supply, or noise. If it is noise, call mark_noise and stop. For a supplier_email, extract first (record_supplier_update), then continue.
 2. Call run_projection. A supplier's announced lead time is NEVER taken at face value: LaunchPilot draws each lead time from the supplier's delivered history and returns a probability of stockout (median week, probability by launch + 1 week, probability before year end). Compare with the "without memory" view: an attentive planner who reads the same messages but believes the announced lead times. Explain the gap with the supplier memory.
@@ -83,7 +84,7 @@ WATCH_TOOLS = [
          "component_id": {"type": "string"}, "stockout_week": {"type": "string", "description": "YYYY-MM-DD (a Monday)"},
          "severity": {"type": "string", "enum": ["high", "medium", "low"]}, "confidence": {"type": "number"},
          "explanation": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}},
-         "risk_type": {"type": "string", "enum": ["stockout_component", "supplier_continuity"], "description": "stockout_component (default) for a projected stockout; supplier_continuity for a legal-status risk on a supplier, which does not replace or block a stockout alert on the same component"}},
+         "risk_type": {"type": "string", "enum": ["stockout_component", "supplier_continuity", "capacity"], "description": "stockout_component (default) for a projected stockout; supplier_continuity for a legal-status risk on a supplier, which does not replace or block a stockout alert on the same component; capacity for a product its contract manufacturer cannot fill (component_id is then the product id)"}},
          "required": ["component_id", "stockout_week", "severity", "confidence", "explanation", "evidence"]}},
     {"name": "record_supplier_update", "description": "Records what a supplier email states about a purchase order, as a structured event the projection understands. kind=delay needs new_promised_date (YYYY-MM-DD) or announced_delay_days; kind=confirmation needs confirmed_qty (units shipped or confirmed) and optionally confirmed_date.",
      "input_schema": {"type": "object", "properties": {
@@ -95,6 +96,8 @@ WATCH_TOOLS = [
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "supplier_exposure", "description": "What-if for a supplier named in a public notice: its open orders never arrive (delivered ones stay in stock). Per component: open orders, units still on order vs received, stockout week as is and if the orders never arrive, extra units short, lost revenue at shelf price, second source if any, severity if missing, evidence rows.",
      "input_schema": {"type": "object", "properties": {"supplier_id": {"type": "string"}}, "required": ["supplier_id"]}},
+    {"name": "check_capacity", "description": "Contract-manufacturer capacity against demand, with the capacity drops and sell-out spikes known so far. Per product its plant cannot fill: first week short, units and revenue lost at shelf price (gift set filled first), units and revenue still lost if the overflow is filled at the other plant, suggested severity, confidence, evidence.",
+     "input_schema": {"type": "object", "properties": {}}},
     {"name": "mark_noise", "description": "The event has no supply impact.",
      "input_schema": {"type": "object", "properties": {"reason": {"type": "string"}}, "required": ["reason"]}},
     {"name": "no_new_risk", "description": "The event was analysed; no new alert is needed.",
@@ -106,12 +109,19 @@ def _existing(store, cid):
     return [a for a in store.list_alerts() if a["item_id"] == cid]
 
 
-def _should_alert(store, cid, week, risk_type="stockout_component", trigger=None):
+SEV_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def _should_alert(store, cid, week, risk_type="stockout_component", trigger=None, severity=None):
     """Each risk type dedups only against itself: a stockout alert moves only to an earlier week; a supplier-continuity
-    alert is raised once per notice."""
+    alert is raised once per notice; a capacity alert is raised again only when it gets earlier or more severe."""
     ex = [a for a in _existing(store, cid) if (a.get("risk_type") or "stockout_component") == risk_type]
     if not ex:
         return True
+    if risk_type == "capacity":
+        last = ex[0]
+        return (SEV_RANK.get(severity, 0) > SEV_RANK.get(last["severity"], 0)
+                or bool(week and last["predicted_stockout_week"] and week < last["predicted_stockout_week"]))
     if risk_type != "stockout_component":
         return not any(a.get("trigger_event_id") == trigger for a in ex)
     last = ex[0]["predicted_stockout_week"]
@@ -122,9 +132,9 @@ def watch_live(store, event, events_seen):
     created = []
 
     def create_alert(component_id, stockout_week, severity, confidence, explanation, evidence, risk_type="stockout_component"):
-        if component_id not in T.COMP:
-            return {"error": "unknown component"}
-        if not _should_alert(store, component_id, stockout_week, risk_type, event["event_id"]):
+        if component_id not in T.COMP and not (risk_type == "capacity" and component_id in T.PROD):
+            return {"error": "unknown component (a capacity alert takes a product id)"}
+        if not _should_alert(store, component_id, stockout_week, risk_type, event["event_id"], severity):
             return {"status": "ignored: an identical or more severe alert of this risk type is already open"}
         aid = store.add_alert({"source": SOURCE_LIVE, "trigger_event_id": event["event_id"], "item_id": component_id, "risk_type": risk_type,
                                "predicted_stockout_week": stockout_week or None, "severity": severity, "confidence": confidence,
@@ -169,6 +179,7 @@ def watch_live(store, event, events_seen):
         "record_supplier_update": record_supplier_update,
         "get_supplier_master": lambda: T.get_supplier_master(),
         "supplier_exposure": lambda supplier_id: T.supplier_exposure(events_seen, supplier_id),
+        "check_capacity": lambda: T.capacity_check(events_seen),
         "create_alert": create_alert,
         "mark_noise": lambda reason: {"status": "ok"},
         "no_new_risk": lambda reason: {"status": "ok"},
@@ -205,6 +216,21 @@ def watch_rules(store, event, events_seen):
                                    "severity": r["suggested_severity"], "confidence": r["confidence"], "explanation": txt,
                                    "evidence": r["evidence"]})
             created.append(aid)
+    if event["event_type"] in ("capacity_drop", "sellout_spike"):
+        for c in T.capacity_check(events_seen):
+            wk, sev = c["first_unserved_week"], c["suggested_severity"]
+            if not _should_alert(store, c["product_id"], wk, "capacity", event["event_id"], sev):
+                continue
+            drops = ", ".join(e for e in c["evidence"] if e.startswith("events:"))
+            n = lambda x: f"{x:,}".replace(",", " ")
+            txt = (f"{c['name']} cannot be filled at {c['plant_name']} from the week of {wk}: {n(c['units_unserved'])} units short, "
+                   f"{n(c['lost_revenue_eur'])} € at shelf price, because the plant's capacity drops ({drops}) leave too little once the launch gift set is filled first. "
+                   f"Filling the overflow at {', '.join(c['overflow_plants'])} would leave {n(c['units_unserved_if_moved'])} short "
+                   f"({n(c['lost_revenue_eur_if_moved'])} €).")
+            aid = store.add_alert({"source": SOURCE_RULES, "trigger_event_id": event["event_id"], "item_id": c["product_id"],
+                                   "risk_type": "capacity", "predicted_stockout_week": wk, "severity": sev,
+                                   "confidence": c["confidence"], "explanation": txt, "evidence": c["evidence"]})
+            created.append(aid)
     run = {"agent": "watch", "mode": "rules", "input": event["event_id"], "tool_calls": [], "output": f"{len(created)} alert(s)",
            "latency_ms": 0, "tokens_in": 0, "tokens_out": 0, "alerts_created": created}
     store.log_run(run)
@@ -217,7 +243,7 @@ ARB_SYSTEM = """You are LaunchPilot's arbitration agent, working for Claire, sup
 A stockout alert has just been raised. Goal: offer her 3 scenarios costed in euros, then recommend one. Answer in English.
 Method:
 1. Call cost_scenario with kind="do_nothing" to know the revenue at risk.
-2. Evaluate at least: order_alt_supplier, order_main_supplier, prioritize_launch, order_alt_and_prioritize, reduce_launch. Watch the safety margin (safety_margin_days): an order that lands the very week the stock breaks, from an unreliable supplier, is risky. The lead times used are the ACTUAL lead times learned, not the announced ones.
+2. Evaluate at least: order_alt_supplier, order_main_supplier, prioritize_launch, order_alt_and_prioritize, reduce_launch. For a capacity alert (the item is a product its contract manufacturer cannot fill) the kinds are do_nothing and move_filling only. Watch the safety margin (safety_margin_days): an order that lands the very week the stock breaks, from an unreliable supplier, is risky. The lead times used are the ACTUAL lead times learned, not the announced ones.
 3. Think about combinations (for example a rush order plus allocating the gift set first while waiting) and explain them.
 4. Call save_scenario for the 3 scenarios you keep (best first), each with a two-sentence description that quotes the tools' figures.
 5. End with your recommendation in at most 3 sentences: what you would do, why, and the question Claire has to settle. Give your confidence level.
@@ -260,14 +286,17 @@ def arbitrate_live(store, alert, events_seen, now):
         "get_supplier_memory": lambda supplier_id=None: T.get_supplier_memory(supplier_id),
         "save_scenario": save_scenario,
     }
+    item = (f"Component: {T.comp_label(cid)}, main supplier {T.supplier_of(cid)}, alternative {T.COMP[cid]['alt_supplier_id'] or 'none'}."
+            if cid in T.COMP else f"Product: {T.comp_label(cid)} (capacity alert: kinds do_nothing and move_filling).")
     user = (f"Simulated date: {now}. Alert: {json.dumps({k: alert[k] for k in ['alert_id', 'item_id', 'predicted_stockout_week', 'severity', 'explanation']}, ensure_ascii=False)}\n"
-            f"Component: {T.comp_label(cid)}, main supplier {T.supplier_of(cid)}, alternative {T.COMP[cid]['alt_supplier_id'] or 'none'}.")
+            + item)
     return _loop(ARB_SYSTEM, user, ARB_TOOLS, handlers, store, "arbitration")
 
 
 def arbitrate_rules(store, alert, events_seen, now):
     cid = alert["item_id"]
-    kinds = ["order_alt_and_prioritize", "order_alt_supplier", "prioritize_launch", "reduce_launch", "order_main_supplier"]
+    kinds = (["order_alt_and_prioritize", "order_alt_supplier", "prioritize_launch", "reduce_launch", "order_main_supplier"]
+             if cid in T.COMP else ["move_filling"])
     res = [T.cost_scenario(events_seen, now, cid, k) for k in kinds]
     res = [r for r in res if "error" not in r]
     res.sort(key=lambda r: (r["total_impact_eur"], -(r.get("safety_margin_days") or 0)))

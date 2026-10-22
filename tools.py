@@ -4,6 +4,7 @@ Tous les calculs sont déterministes (projection.py) ; les agents décident quoi
 """
 from datetime import date, timedelta
 from projection import load, project, project_prob, supplier_memory, _d, monday, working_day, set_holidays
+import capacity as CAP
 import os
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -19,6 +20,7 @@ LAUNCH_WEEK = _d(DB["gt"]["launch_week"])
 WINDOW_END = _d(DB["gt"]["window_end"])
 SIM_TODAY = _d(DB["gt"]["sim_today"])
 LAUNCH_PRODUCT = next(p["product_id"] for p in DB["products"] if p["is_launch"] == "True")
+PLANTS = CAP.load_plants(DATA)
 
 
 def all_events():
@@ -26,7 +28,8 @@ def all_events():
 
 
 def comp_label(cid):
-    return COMP[cid]["name"]
+    """A component's name; a capacity alert is about a product, so fall back to product names."""
+    return COMP[cid]["name"] if cid in COMP else PROD[cid]["name"] if cid in PROD else cid
 
 
 def supplier_of(cid):
@@ -120,7 +123,10 @@ def unserved_units(component_id, series):
 
 def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=None):
     """kind : do_nothing | order_main_supplier | order_alt_supplier | prioritize_launch | reduce_launch | order_alt_and_prioritize
-    cost_eur = surcoût vs la situation normale ; stock_value_eur = achat immobilisé ; lost_revenue_eur = CA perdu."""
+    cost_eur = surcoût vs la situation normale ; stock_value_eur = achat immobilisé ; lost_revenue_eur = CA perdu.
+    For a product (a capacity alert), kind is do_nothing or move_filling."""
+    if component_id in PROD:
+        return capacity_scenario(events_seen, component_id, kind)
     base = project(DB, events_seen, "learned")[component_id]
     shortage = unserved_units(component_id, base["series"])
     cons = _consumers(component_id)
@@ -328,3 +334,55 @@ def sync_holidays(store):
                     dates.add(d); d += timedelta(days=1)
     set_holidays(dates)
     return len(dates)
+
+
+# ---------- contract-manufacturer capacity (capacity.py) ----------
+
+CAPACITY_HIGH_UNITS = 1000   # a capacity shortfall is high when at least this many units go unfilled by launch + 1 week
+
+
+def capacity_check(events_seen):
+    """Can the contract manufacturers fill what the forecast asks for, given the capacity drops and sell-out spikes known
+    so far? Per product that goes short: its plant, the first week its finished stock cannot cover demand, units and
+    revenue lost at shelf price (the launch gift set is filled first), and the what-if of filling the overflow at
+    another plant's spare capacity. Assumes the components are there; the component projection answers that."""
+    base, _ = CAP.simulate(DB, PLANTS, events_seen, LAUNCH_PRODUCT, WINDOW_END)
+    moved, _ = CAP.simulate(DB, PLANTS, events_seen, LAUNCH_PRODUCT, WINDOW_END, overflow=True)
+    out = []
+    for pid, r in base.items():
+        if not r["units_unserved"]:
+            continue
+        wk, m = r["first_unserved_week"], moved[pid]
+        high = r["units_unserved"] >= CAPACITY_HIGH_UNITS and _d(wk) <= LAUNCH_WEEK + timedelta(weeks=1)
+        out.append({"product_id": pid, "name": PROD[pid]["name"], "plant": r["plant"], "plant_name": PLANTS[r["plant"]]["name"],
+                    "capacity_per_week": PLANTS[r["plant"]]["capacity"], "first_unserved_week": wk,
+                    "units_unserved": r["units_unserved"], "lost_revenue_eur": r["lost_revenue_eur"],
+                    "overflow_plants": [PLANTS[f]["name"] for f in PLANTS if f != r["plant"]],
+                    "units_unserved_if_moved": m["units_unserved"], "lost_revenue_eur_if_moved": m["lost_revenue_eur"],
+                    "suggested_severity": "high" if high else "medium",
+                    "confidence": 1.0, "confidence_note": "deterministic: the known capacity drops against the forecast",
+                    "evidence": [f"subcontractors:{r['plant']}", f"inventory:{pid}"] + [f"events:{e}" for e in r["drop_events"]]})
+    return out
+
+
+def capacity_scenario(events_seen, product_id, kind):
+    """Costed options for a capacity alert, in the same shape as cost_scenario. Transfer costs are not modelled."""
+    c = next((x for x in capacity_check(events_seen) if x["product_id"] == product_id), None)
+    if not c:
+        return {"error": f"no capacity shortfall for {product_id}"}
+    res = {"component_id": product_id, "kind": kind, "cost_eur": 0.0, "stock_value_eur": 0.0,
+           "shortage_units_before": c["units_unserved"], "evidence_rows": c["evidence"]}
+    if kind == "do_nothing":
+        res.update(label="Do nothing", lost_revenue_eur=c["lost_revenue_eur"], shortage_units_after=c["units_unserved"],
+                   detail=f"{c['units_unserved']} units of {c['name']} cannot be filled at {c['plant_name']} from the week of "
+                          f"{c['first_unserved_week']} (the gift set is filled first), at {float(PROD[product_id]['price_eur']):.0f} € each")
+    elif kind == "move_filling":
+        after = c["units_unserved_if_moved"]
+        res.update(label=f"Fill the overflow at {', '.join(c['overflow_plants'])}", lost_revenue_eur=c["lost_revenue_eur_if_moved"],
+                   shortage_units_after=after,
+                   detail=f"Spare capacity at {', '.join(c['overflow_plants'])} fills {c['units_unserved'] - after} of the "
+                          f"{c['units_unserved']} units in the short weeks; {after} still short. Transfer costs are not modelled.")
+    else:
+        return {"error": "a capacity alert takes kind do_nothing or move_filling"}
+    res["total_impact_eur"] = round(res["cost_eur"] + res["lost_revenue_eur"])
+    return res

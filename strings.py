@@ -63,7 +63,7 @@ EN = {
     "proof_col_truth": "True stockout", "proof_col_nm": "Without memory", "proof_col_lp": "LaunchPilot",
     "proof_col_p": "P(stockout ≤ launch + 1 wk) at the end", "proof_days_ahead": "{days} days ahead", "proof_missed": "Missed",
     "proof_missing": "Run `python3 evaluate.py` to produce the results.",
-    "proof_limits": "Limits: synthetic data; deliveries land on French working days and a delivery counts for its whole week (weekly buckets); contract-manufacturer capacity drops are not yet part of the projection engine.",
+    "proof_limits": "Limits: synthetic data; deliveries land on French working days and a delivery counts for its whole week (weekly buckets); contract-manufacturer capacity is checked separately from the component projection, assuming the components are there.",
     "cost_title": "What it costs to run",
     "cost_caption": "Read live from the agent_runs table in Aiven for PostgreSQL, across every session since the last reset: {events} events analysed, {runs} agent runs, {live} of them live Claude calls. "
                     "Dollar figures are estimates at the model's list price ({model}: {p_in:g} and {p_out:g} USD per million input and output tokens); the gateway's spend log is the authoritative figure. Rules runs cost nothing.",
