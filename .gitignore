@@ -1,0 +1,13 @@
+# Secrets: each developer links .env.local to their own copy; never commit it
+.env
+.env*.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+.DS_Store
