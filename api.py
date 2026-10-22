@@ -16,32 +16,15 @@ from pydantic import BaseModel
 
 import tools as T
 import agents as A
-from store import MemStore, PgStore
+import worker as W
+from store import PgStore, get_store
 from strings import EN as S
 
 
 
-class SharedPgStore(PgStore):
-    """The Streamlit app (launchpilot) owns the schema and the master data in accel-pg. The API only connects:
-    no schema, no CSV reload and no reset at start-up, so restarting it never touches the shared demo.
-    (PgStore's bootstrap reloads the tables whenever data/ differs, so two apps on different commits would fight.)"""
-
-    def __init__(self, url):
-        self.url = url
-        self._connect()
-
-
-def _open_store():
-    url = os.environ.get("DATABASE_URL", "").strip()
-    if not url:
-        return MemStore(), None
-    try:
-        return SharedPgStore(url), None
-    except Exception as ex:  # never block the frontend
-        return MemStore(), f"PostgreSQL connection failed, running in memory: {ex}"
-
-
-store, store_err = _open_store()
+# The Streamlit app owns the schema and the master data; the API never bootstraps (reloads) the shared database
+store, store_err = get_store(bootstrap=False)
+T.sync_deliveries(store)          # deliveries applied by another process live in the database
 ALL = T.all_events()
 LOCK = threading.Lock()      # one agent run at a time: a double click must not process an event twice
 RUNS = []                    # this process's agent runs, with tool calls (the store keeps a summary)
@@ -57,13 +40,20 @@ api = APIRouter(prefix="/api")
 
 # ---------------- helpers ----------------
 
-def _seen():
-    ids = {e["event_id"] for e in store.list_events()}
-    return [e for e in ALL if e["event_id"] in ids]
+def _recorded_done(rows=None):
+    """Progress through the recorded scenario: the EV- events already processed."""
+    done = {e["event_id"] for e in (rows if rows is not None else store.list_events()) if e["processed"]}
+    return [e for e in ALL if e["event_id"] in done]
 
 
-def _now(seen):
-    return date.fromisoformat(seen[-1]["ts"][:10]) if seen else T.SIM_TODAY
+def _clock(rows=None):
+    """The demo clock: the latest processed timestamp, recorded or live."""
+    rows = rows if rows is not None else store.list_events()
+    return max([e["ts"] for e in rows if e["processed"]] or [T.SIM_TODAY.isoformat()])
+
+
+def _now():
+    return date.fromisoformat(_clock()[:10])
 
 
 def _mode(m):
@@ -132,12 +122,28 @@ def _run(r):
             "alerts_created": r.get("alerts_created", [])}
 
 
-def _process(event, live, seen):
-    store.add_event(event)
-    run = (A.watch_live if live else A.watch_rules)(store, event, seen + [event])
-    store.mark_processed(event["event_id"])
+def _drain(clock_ts, live, selective=False):
+    runs = W.drain(store, clock_ts, live, selective=selective)
+    RUNS.extend(runs)
+    return runs
+
+
+def _process(event, live, live_rows=None, selective=False):
+    """Same as process() in app.py: first the live rows due by then (an email may carry the same news first), then the
+    recorded event, stored as superseded when an email twin already applied it. Returns (run, live runs)."""
+    drained = _drain(event["ts"], live if live_rows is None else live_rows, selective=selective)
+    twin = store.superseded_by(event["event_id"])
+    if twin:
+        store.add_event(dict(event, payload={**event["payload"], "superseded": True}), processed=True)
+        run = {"agent": "watch", "mode": "rules", "input": event["event_id"], "tool_calls": [],
+               "output": S["superseded_note"].format(twin=twin), "latency_ms": 0, "tokens_in": 0, "tokens_out": 0, "alerts_created": []}
+        store.log_run(run)
+    else:
+        store.add_event(event)
+        run = (A.watch_live if live else A.watch_rules)(store, event, T.events_seen(store) + [event])
+        store.mark_processed(event["event_id"])
     RUNS.append(run)
-    return run
+    return run, drained
 
 
 def _latest_alerts():
@@ -166,16 +172,17 @@ def _alert(a):
 
 
 def _state():
-    seen = _seen()
-    now = _now(seen)
+    rows = store.list_events()
+    done, clock = _recorded_done(rows), _clock(rows)
+    now, seen = date.fromisoformat(clock[:10]), T.events_seen(store)
     proj = T.run_projection(seen)
     risk = max([T.cost_scenario(seen, now, r["component_id"], "do_nothing")["lost_revenue_eur"]
                 for r in proj if r["stockout_week_launchpilot"]] or [0])
-    nxt = ALL[len(seen)] if len(seen) < len(ALL) else None
+    nxt = ALL[len(done)] if len(done) < len(ALL) else None
     return {
-        "sim_date": now.isoformat(), "launch_week": T.LAUNCH_WEEK.isoformat(), "window_end": T.WINDOW_END.isoformat(),
+        "sim_date": now.isoformat(), "clock": clock, "live_due": len(store.list_unprocessed(clock)), "launch_week": T.LAUNCH_WEEK.isoformat(), "window_end": T.WINDOW_END.isoformat(),
         "launch_product": {"product_id": T.LAUNCH_PRODUCT, "name": T.PROD[T.LAUNCH_PRODUCT]["name"]},
-        "events_processed": len(seen), "events_total": len(ALL),
+        "events_processed": len(done), "events_total": len(ALL),
         "next_event": _event(nxt) if nxt else None,
         "data": {"store": _store_kind(), "label": S["store_pg"] if _store_kind() == "postgres" else S["store_memory"],
                  "error": store_err, "dataset": S["dataset_value"]},
@@ -225,7 +232,7 @@ def state():
 def projection(component_id: str):
     if component_id not in T.COMP:
         raise HTTPException(404, f"unknown component {component_id}")
-    cs = {k: dict(v) for k, v in T.chart_series(_seen(), component_id).items()}   # p10, p50, p90, without_memory
+    cs = {k: dict(v) for k, v in T.chart_series(T.events_seen(store), component_id).items()}   # p10, p50, p90, without_memory
     weeks = sorted(set().union(*cs.values()))
     return {"component_id": component_id, "name": T.comp_label(component_id), "launch_week": T.LAUNCH_WEEK.isoformat(),
             "series": [{"week": w, **{k: v.get(w) for k, v in cs.items()}} for w in weeks]}
@@ -239,11 +246,12 @@ def events(limit: int = 50):
 @api.post("/events/next")
 def next_event(body: RunBody = RunBody()):
     with LOCK:
-        seen = _seen()
-        if len(seen) >= len(ALL):
+        done = _recorded_done()
+        if len(done) >= len(ALL):
             raise HTTPException(409, "the recorded scenario is finished; reset to replay it")
-        run = _process(ALL[len(seen)], _live(body.live), seen)
-    return {"event": _event(ALL[len(seen)]), "run": _run(run), "state": _state()}
+        event = ALL[len(done)]
+        run, drained = _process(event, _live(body.live))
+    return {"event": _event(event), "run": _run(run), "live_runs": [_run(r) for r in drained], "state": _state()}
 
 
 @api.post("/fast-forward")
@@ -252,21 +260,47 @@ def fast_forward(body: FastForwardBody = FastForwardBody()):
     if body.until not in ids:
         raise HTTPException(404, f"unknown event {body.until}")
     with LOCK:
-        seen = _seen()
-        stop = ids.index(body.until)
-        if len(seen) > stop:
+        done = _recorded_done()
+        if body.until in {e["event_id"] for e in done}:
             raise HTTPException(409, f"{body.until} is already processed")
-        for e in ALL[len(seen):stop]:              # replay up to the target in rules mode
-            _process(e, False, seen)
-            seen.append(e)
-        run = _process(ALL[stop], _live(body.live), seen)   # the target event live when possible
-    return {"event": _event(ALL[stop]), "run": _run(run), "state": _state()}
+        stop, drained = ids.index(body.until), []
+        for e in ALL[len(done):stop]:              # replay up to the target in rules mode, live rows included
+            drained += _process(e, False)[1]
+        run, last = _process(ALL[stop], _live(body.live))   # the target event live when possible
+    return {"event": _event(ALL[stop]), "run": _run(run), "live_runs": [_run(r) for r in drained + last], "state": _state()}
+
+
+@api.post("/fast-forward-today")
+def fast_forward_today(body: RunBody = RunBody()):
+    """As app.py: the rest of the recorded story in rules mode, the live rows on the way selectively live
+    (supplier emails and insolvency notices that match a supplier), then every live row due by the last event."""
+    live = _live(body.live)
+    with LOCK:
+        done = _recorded_done()
+        if len(done) >= len(ALL):
+            raise HTTPException(409, "the recorded scenario is finished; reset to replay it")
+        runs, drained = [], []
+        for e in ALL[len(done):]:
+            run, d = _process(e, False, live_rows=live, selective=True)
+            runs.append(run)
+            drained += d
+        drained += _drain(ALL[-1]["ts"], live, selective=True)
+    return {"runs": len(runs), "live_runs": [_run(r) for r in drained], "state": _state()}
+
+
+@api.post("/live/drain")
+def drain_live(body: RunBody = RunBody()):
+    """Analyse the live rows (emails, goods receipts, public notices) dated on or before the demo clock."""
+    with LOCK:
+        drained = _drain(_clock(), _live(body.live))
+    return {"live_runs": [_run(r) for r in drained], "state": _state()}
 
 
 @api.post("/reset")
 def reset():
     with LOCK:
         store.reset()
+        T.reset_deliveries()
         RUNS.clear()
         RECO.clear()
     return _state()
@@ -285,8 +319,7 @@ def arbitrate(alert_id: int, body: RunBody = RunBody()):
     with LOCK:
         if store.list_scenarios(alert_id):
             raise HTTPException(409, "scenarios already exist for this alert")
-        seen = _seen()
-        run = (A.arbitrate_live if _live(body.live) else A.arbitrate_rules)(store, a, seen, _now(seen))
+        run = (A.arbitrate_live if _live(body.live) else A.arbitrate_rules)(store, a, T.events_seen(store), _now())
         RUNS.append(run)
         RECO[alert_id] = run["output"]
     return {"alert": _alert(a), "run": _run(run)}
