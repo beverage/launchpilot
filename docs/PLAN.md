@@ -27,7 +27,11 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 | C1 | Route Claude through the sponsor's AI gateway | A live run goes through the gateway | Should | streams side | done 11:40: the deployed app's Claude calls go through our LiteLLM gateway on Runtime (`launchpilot-gateway`), switched at 11:34; a live two-turn watch-agent run (4,509 in, 266 out tokens, $0.012) is in the gateway's spend log under key `launchpilot-app`. Aiven AI Gateway still requested; switching to it is the same two env vars |
 | C2 | Event stream on Aiven Kafka instead of table replay | Events consumed from a topic | Nice | streams side | done 12:30: three live streams flow through Aiven Kafka (`lp.supplier_insolvency`, `lp.supplier_email`, `lp.po_delivered`), bridged into `events` by the ingest app on Runtime: 9 BOD-, 5 MAIL- and 6 DLV- rows, payloads identical to the sources. The recorded EV- scenario stays on the app's own replay |
 | A6 | Launch exposure on a supplier notice: a what-if drops the supplier's open orders and sizes the extra shortfall and lost revenue, cited by the continuity alert, live and in rules mode | The CM INDUSTRIE alert says "12,000 of the 21,000 launch boxes are still on order; if this order does not arrive, the gift box runs out the week of 16 November instead of 14 December" | Should | Alex (kickoff session) | done 14:20, merged to main; verified in rules and live modes (16 Nov instead of 14 Dec, 12,000 more short, 1.07 M€, medium, no second source); proof byte-identical; deploy with the next build |
-| A4 | Capacity drops into the projection | A capacity event can trigger an alert | Nice | app side | from the brief |
+| A4 | Hero 3, launch-week filling capacity: each product has a contract manufacturer, capacity drops cut its weekly output, finished-goods stock buffers, and the agent says when a product cannot be filled and what moving work to the other plant saves | The recorded FAC-01 drop in launch week raises a cited capacity alert with a costed option, live and in rules mode; the proof does not move | Must | Alex (test-data session) | doing 14:27 |
+| A7 | Deliveries land on French working days: an arrival on a weekend or public holiday (HOL- rows, built-in fallback) moves to the next working day, in the engine and the ground truth | The best option's rush order no longer lands on a Sunday; proof, README, submission and exhibit numbers updated | Must | app side (Supplier emails and memory) | todo, claim when starting |
+| A8 | Hero 4, raw sell-out: weekly units per product and channel (SELL- rows) instead of a labelled spike; the agent computes the deviation and records the spike, and the recorded twin is stored as superseded | A SELL- row produces a cited forecast adjustment live; the proof does not move | Should | Alex (test-data session) | todo, after A4 |
+| C6 | Hero 5, real French public holidays from Nager.Date as HOL- events through Kafka (lp.holiday_closure) | HOL- rows in events, and the engine (A7) moves an arrival off a holiday | Should | streams side | todo, claim when starting |
+| C7 | Sell-out replay through Kafka (lp.sellout_weekly) from data/sellout.jsonl | SELL- rows in events | Should | streams side | todo, after A8's data |
 | D1 | Pitch slide: who, why now, proof, first users | Slide final | Must | Imène | from the brief |
 | D2 | Three-minute script and judge Q&A prep | Timed rehearsal under 3:00 | Must | Imène | from the brief |
 | D3 | Demo video: required by the form, not a backup (one end-to-end journey, MP4, three minutes at most; shot list in [SUBMISSION.md](SUBMISSION.md)) | MP4 uploaded to the form | Must | Imène | from the brief |
@@ -40,7 +44,7 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 | --- | --- |
 | 11:45 | A0 on `main`, C0 deployed, A1 green on our URL |
 | 13:30 | A5, A2, A3 and B1 merged; the journey still works |
-| 15:00 | Feature freeze; the deployed app runs the full journey |
+| moved (14:27, Alex; time to be set) | Feature freeze, after A4, A7, A8, C6 and C7 land; then record the video on the deployed app |
 | 15:00 to 15:30 | Polish only: B2, B3, C3, C4 if green; bug fixes |
 | 15:30 to 16:00 | Rehearsal, backup video, slide final |
 
