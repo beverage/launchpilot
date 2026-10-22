@@ -163,3 +163,5 @@ ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS activity_code TEXT;
 
 -- Demo mapping: one fictional supplier carries a real company's SIREN so a real BODACC notice can be matched, with a label on screen
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS siren TEXT;
+-- Which contract manufacturer fills each product (capacity check)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS filled_by TEXT;

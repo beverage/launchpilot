@@ -83,7 +83,11 @@ PRODUCTS = [
      {"CMP-FLA-30":1, "CMP-POM-01":1, "CMP-FLA-50":1, "CMP-COF-NOEL":1}),
 ]
 CHANNELS = {"eshop":0.35, "selective_retail":0.45, "pharmacy":0.20}
-SUBCONTRACTORS = [("FAC-01", "Laboratoire Val de Loire", 9000), ("FAC-02", "Cosmétiques Normandie", 3000)]
+SUBCONTRACTORS = [("FAC-01", "Laboratoire Val de Loire", 5500), ("FAC-02", "Cosmétiques Normandie", 3000)]
+# Which contract manufacturer fills each product (capacity check, capacity.py): serums and the gift set at the lab that
+# handles airless pumps, creams in jars at the other. Written to products.csv only, so no random draw moves.
+FILLED_BY = {"PRD-SER-ECL": "FAC-01", "PRD-SER-NUI": "FAC-01", "PRD-COF-NOEL": "FAC-01",
+             "PRD-CRE-HYD": "FAC-02", "PRD-CRE-RIC": "FAC-02"}
 
 # Demande prévue du coffret : rampe avant/pendant Noël
 def coffret_forecast(w):
@@ -311,8 +315,8 @@ write("suppliers.csv", ["supplier_id","name","category","announced_lead_time_day
       [s[:6] + (ACTIVITY[s[0]], SIREN.get(s[0], "")) for s in SUPPLIERS])
 write("components.csv", ["component_id","name","category","main_supplier_id","alt_supplier_id"],
       COMPONENTS + [(cid, name, "coffret", "SUP-COF", None) for _, cid, name in PAST_SETS])
-write("products.csv", ["product_id","name","family","price_eur","margin_rate","is_launch","launch_week"],
-      [(p_[0], p_[1], p_[2], p_[3], p_[4], p_[5], 45 if p_[5] else "") for p_ in PRODUCTS])
+write("products.csv", ["product_id","name","family","price_eur","margin_rate","is_launch","launch_week","filled_by"],
+      [(p_[0], p_[1], p_[2], p_[3], p_[4], p_[5], 45 if p_[5] else "", FILLED_BY[p_[0]]) for p_ in PRODUCTS])
 write("bom.csv", ["product_id","component_id","qty_per_unit"],
       [(pid, c, q) for pid, b in bom.items() for c, q in b.items()])
 write("subcontractors.csv", ["subcontractor_id","name","weekly_capacity_units"], SUBCONTRACTORS)
