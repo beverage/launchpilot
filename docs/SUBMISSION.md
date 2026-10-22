@@ -25,7 +25,7 @@ Abstract on purpose: no named customer, and both halves of the product, reacting
 
 **tl;dr.** Business events → Aiven for Apache Kafka → Aiven for PostgreSQL → Claude agents with SQL-backed tools → an alert that cites its rows; every delivery updates the supplier memory, so the next forecast already knows.
 
-- **In:** three live streams (supplier emails, goods receipts, real insolvency notices from BODACC), one Kafka topic each, bridged into PostgreSQL by an ingest app.
+- **In:** four live streams (supplier emails, retailer order books, goods receipts, real insolvency notices from BODACC), one Kafka topic each, bridged into PostgreSQL by an ingest app.
 - **Stored:** PostgreSQL holds the planning data (orders, stock, sales, forecasts, bills of materials), the events, and everything the agents produce: alerts, scenarios, decisions, traces.
 - **Used:** the agents react to each event by calling tools that query PostgreSQL (stock projection, supplier memory, open orders, costing), and every alert cites its rows.
 - **Learned:** each delivery updates a SQL view of how late each supplier really delivers, and the projection draws lead times from it.
@@ -35,9 +35,9 @@ The long version, for the form:
 
 > LaunchPilot's agents fail without the data: with announced lead times alone, they place the launch-week pump stockout on 21 December instead of 9 November.
 >
-> **What the agents use.** A brand's planning data (suppliers, components, bills of materials, 78 weeks of sales by channel, forecasts, stock, 70 purchase orders with promised and actual dates) and three live streams: free-text supplier emails in French, goods receipts, and real insolvency notices from BODACC, the French official gazette, enriched with company-registry cards.
+> **What the agents use.** A brand's planning data (suppliers, components, bills of materials, 78 weeks of sales by channel, forecasts, stock, 70 purchase orders with promised and actual dates) and four live streams: free-text supplier emails in French, retailer order books as raw numbers, goods receipts, and real insolvency notices from BODACC, the French official gazette, enriched with company-registry cards.
 >
-> **Where it lives.** Everything sits in Aiven for PostgreSQL. The streams flow through Aiven for Apache Kafka, one topic per event type (`lp.supplier_email`, `lp.po_delivered`, `lp.supplier_insolvency`); an ingest app on Aiven Runtime polls BODACC and bridges every topic into an `events` table. Five apps run on Aiven Runtime: the agent app, the ingest bridge, the HTTP API, the web front end, and a LiteLLM gateway through which every Claude call passes and is costed.
+> **Where it lives.** Everything sits in Aiven for PostgreSQL. The streams flow through Aiven for Apache Kafka, one topic per event type (`lp.supplier_email`, `lp.channel_orders`, `lp.po_delivered`, `lp.supplier_insolvency`); an ingest app on Aiven Runtime polls BODACC and bridges every topic into an `events` table. Five apps run on Aiven Runtime: the agent app, the ingest bridge, the HTTP API, the web front end, and a LiteLLM gateway through which every Claude call passes and is costed.
 >
 > **How it flows.** A worker drains due events in time order. The watch agent (Claude with tool use) reads each one and calls tools that query PostgreSQL: the stock projection, the supplier memory, open orders, scenario costing. Every alert cites the rows it rests on. A goods receipt marks its order delivered, which updates the `supplier_reliability` view: the supplier memory learns during the demo, and the next projection draws lead times from the new history. The arbitration agent costs the options in euros, and every run, tool call, token count and latency lands in `agent_runs`, which the proof tab reads live.
 
