@@ -1,0 +1,46 @@
+{
+  "real_stockouts": {
+    "CMP-COF-NOEL": "2026-12-14",
+    "CMP-FLA-30": "2026-12-21",
+    "CMP-FLA-50": "2026-12-14",
+    "CMP-POM-01": "2026-11-09"
+  },
+  "naive": {
+    "detected": 1,
+    "total": 4,
+    "avg_anticipation_days": 98,
+    "per_component": {
+      "CMP-COF-NOEL": null,
+      "CMP-FLA-30": null,
+      "CMP-FLA-50": 98,
+      "CMP-POM-01": null
+    },
+    "false_alarms": []
+  },
+  "learned": {
+    "detected": 4,
+    "total": 4,
+    "avg_anticipation_days": 82,
+    "per_component": {
+      "CMP-COF-NOEL": 91,
+      "CMP-FLA-30": 98,
+      "CMP-FLA-50": 98,
+      "CMP-POM-01": 39
+    },
+    "false_alarms": []
+  },
+  "demo_focus_pump_evidence": [
+    "events:EV-001",
+    "events:EV-002",
+    "events:EV-019 (livraison partielle 12000/20000)",
+    "events:sellout_spike PRD-COF-NOEL x1.25",
+    "events:sellout_spike PRD-COF-NOEL x1.30",
+    "events:sellout_spike PRD-COF-NOEL x1.62",
+    "events:sellout_spike PRD-SER-ECL x1.40",
+    "events:sellout_spike PRD-SER-NUI x1.50",
+    "inventory:CMP-POM-01",
+    "purchase_orders:PO-0063",
+    "purchase_orders:PO-0064",
+    "supplier_reliability:SUP-POM (annoncé 42 j, réel 60.3 ± 7.1 j sur 14 livraisons, délai prudent 67 j)"
+  ]
+}
