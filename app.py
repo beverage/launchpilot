@@ -101,31 +101,36 @@ with tab_launch:
         st.subheader("État des composants du coffret")
         rows = []
         for r in proj:
-            wk, nv = r["stockout_week_launchpilot"], r["stockout_week_naive_excel"]
-            status = (SEV[r["suggested_severity"]][0] + " " + SEV[r["suggested_severity"]][1]) if wk else "🟢 Couvert"
+            wk, nv, sev = r["stockout_week_launchpilot"], r["stockout_week_without_memory"], r["suggested_severity"]
+            status = (SEV[sev][0] + " " + SEV[sev][1]) if sev else "🟢 Couvert"
             rows.append({"Composant": r["name"], "Fournisseur": T.SUP[r["supplier_id"]]["name"],
-                         "Rupture vue par un Excel classique": nv or "—", "Rupture vue par LaunchPilot": wk or "—",
+                         "Sans mémoire (délais annoncés)": nv or "—", "LaunchPilot (semaine médiane)": wk or "—",
+                         "P(rupture ≤ lancement + 1 sem)": f"{r['p_stockout_by_launch_plus_1wk']:.0%}",
                          "Statut": status})
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
         comp = st.selectbox("Projection de stock", [r["component_id"] for r in proj],
                             index=[r["component_id"] for r in proj].index("CMP-POM-01"), format_func=T.comp_label)
-        from projection import project
-        ln = project(T.DB, seen, "learned")[comp]["series"]
-        nv = project(T.DB, seen, "naive")[comp]["series"]
-        df = pd.DataFrame([{"Semaine": w, "Stock": s, "Vue": "LaunchPilot (délais réels)"} for w, s in ln] +
-                          [{"Semaine": w, "Stock": s, "Vue": "Excel classique (délais annoncés)"} for w, s in nv])
+        cs = T.chart_series(seen, comp)
+        LP, NM = "LaunchPilot (délais réels, médiane)", "Sans mémoire (délais annoncés)"
+        df = pd.DataFrame([{"Semaine": w, "Stock": s, "Vue": LP} for w, s in cs["p50"]] +
+                          [{"Semaine": w, "Stock": s, "Vue": NM} for w, s in cs["without_memory"]])
         df["Semaine"] = pd.to_datetime(df["Semaine"])
+        band = pd.DataFrame([{"Semaine": w, "p10": lo, "p90": hi} for (w, lo), (_, hi) in zip(cs["p10"], cs["p90"])])
+        band["Semaine"] = pd.to_datetime(band["Semaine"])
+        area = alt.Chart(band).mark_area(opacity=0.18, color=BLUE).encode(x="Semaine:T", y="p10:Q", y2="p90:Q")
         lines = alt.Chart(df).mark_line(strokeWidth=2, point=alt.OverlayMarkDef(size=36)).encode(
             x=alt.X("Semaine:T", title=None), y=alt.Y("Stock:Q", title="Stock projeté (unités)"),
-            color=alt.Color("Vue:N", scale=alt.Scale(range=[BLUE, GREY], domain=["LaunchPilot (délais réels)", "Excel classique (délais annoncés)"]),
+            color=alt.Color("Vue:N", scale=alt.Scale(range=[BLUE, GREY], domain=[LP, NM]),
                             legend=alt.Legend(orient="top", title=None, labelLimit=400)),
             tooltip=["Semaine:T", "Vue:N", alt.Tooltip("Stock:Q", format=",.0f")])
         zero = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(color=RED, strokeDash=[4, 4]).encode(y="y:Q")
         launch = alt.Chart(pd.DataFrame({"x": [pd.Timestamp(T.LAUNCH_WEEK)], "t": ["Lancement"]}))
-        st.altair_chart((lines + zero + launch.mark_rule(color="#444", strokeDash=[2, 2]).encode(x="x:T") +
+        st.altair_chart((area + lines + zero + launch.mark_rule(color="#444", strokeDash=[2, 2]).encode(x="x:T") +
                          launch.mark_text(align="left", dx=4, dy=-110, color="#444").encode(x="x:T", text="t:N")).properties(height=300),
                         width="stretch")
+        st.caption("Bande bleue : 10e à 90e centile de 200 tirages où chaque délai est pris dans l'historique réel livré du fournisseur. "
+                   "La ligne grise lit les mêmes messages (dates promises, quantités confirmées, pics de ventes) mais croit les délais annoncés.")
 
     with right:
         st.subheader("Fil d'événements")
@@ -211,22 +216,31 @@ with tab_mem:
 
 # =================== ONGLET PREUVE ===================
 with tab_proof:
-    st.subheader("Est-ce que ça marche ? Baseline naïve vs LaunchPilot")
-    st.caption("Scénario enregistré : on rejoue les 35 événements (20 perturbations, 15 bruits) et on compare à la vérité terrain du générateur. "
-               "Une rupture est « détectée » si elle est annoncée à ±1 semaine de sa vraie date.")
+    st.subheader("Est-ce que ça marche ? Planificateur sans mémoire vs LaunchPilot")
+    st.caption("La baseline est honnête : un planificateur attentif qui lit chaque message (dates promises, quantités confirmées, pics de ventes) "
+               "mais croit les délais annoncés. LaunchPilot lit les mêmes messages et y ajoute la mémoire fournisseur. "
+               "Une rupture est « datée » si elle est annoncée à ±1 semaine de sa vraie date à un moment du rejeu.")
     path = os.path.join(T.DATA, "evaluation.json")
     if os.path.exists(path):
         ev = json.load(open(path, encoding="utf-8"))
-        p1, p2, p3 = st.columns(3)
-        p1.metric("Ruptures détectées — Excel classique", f"{ev['naive']['detected']} / {ev['naive']['total']}")
-        p2.metric("Ruptures détectées — LaunchPilot", f"{ev['learned']['detected']} / {ev['learned']['total']}")
-        p3.metric("Fausses alertes (LaunchPilot)", len(ev["learned"]["false_alarms"]))
-        rows = [{"Composant": T.comp_label(c), "Vraie rupture": w,
-                 "Excel classique": f"{ev['naive']['per_component'][c]} j avant" if ev['naive']['per_component'].get(c) is not None else "Ratée",
-                 "LaunchPilot": f"{ev['learned']['per_component'][c]} j avant" if ev['learned']['per_component'].get(c) is not None else "Ratée"}
-                for c, w in ev["real_stockouts"].items()]
+        wm, lp = ev["without_memory"], ev["launchpilot"]
+        p1, p2, p3, p4 = st.columns(4)
+        p1.metric("Ruptures datées — sans mémoire", f"{wm['detected']} / {wm['total']}")
+        p2.metric("Ruptures datées — LaunchPilot", f"{lp['detected']} / {lp['total']}")
+        p3.metric("Dates fausses (> 1 sem) — LaunchPilot", lp["wrong_by_more_than_1wk"],
+                  delta=f"{lp['wrong_by_more_than_1wk'] - wm['wrong_by_more_than_1wk']:+d} vs sans mémoire", delta_color="inverse")
+        p4.metric("Fausses alertes — LaunchPilot", lp["false_alarms"])
+        st.caption(f"{ev['seeds']} mondes synthétiques tirés au sort avec le même générateur (scénario enregistré, pas live). "
+                   f"Avance moyenne sur les ruptures datées : LaunchPilot {lp['mean_lead_days']} j, sans mémoire {wm['mean_lead_days']} j "
+                   f"(la baseline ne date que les ruptures faciles de décembre, d'où son avance).")
+        demo = ev["demo_seed"]
+        st.markdown(f"**Le scénario de la démo (graine {demo['seed']})**")
+        rows = [{"Composant": T.comp_label(c), "Vraie rupture": r["truth"],
+                 "Sans mémoire": f"{r['lead_days_without_memory']} j avant" if r.get("lead_days_without_memory") is not None else "Ratée",
+                 "LaunchPilot": f"{r['lead_days_launchpilot']} j avant" if r.get("lead_days_launchpilot") is not None else "Ratée",
+                 "P(rupture ≤ lancement + 1 sem) à la fin": f"{r['p_by_launch_plus_1wk']:.0%}"}
+                for c, r in demo["per_component"].items() if r["truth"]]
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-        st.markdown("**Robustesse sur 11 tirages de données** : 37/44 ruptures détectées (84 %) contre 11/44 (25 %), 0 fausse alerte.")
     else:
         st.info("Lance `python3 evaluate.py` pour produire les résultats.")
     st.caption("Limites : données synthétiques ; les baisses de capacité façonnier ne sont pas encore prises en compte par le moteur de projection.")

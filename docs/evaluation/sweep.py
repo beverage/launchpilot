@@ -9,8 +9,10 @@ it is predicted within one week of its true date at some point during the event 
            spikes and order confirmations
   literal  a fair baseline: takes every message at face value (new promised dates,
            confirmed quantities, sell-out spikes) but has no supplier memory
-  learned  LaunchPilot: supplier memory (mean + 1 sd lead time, amplified announced
-           delays) on top of everything the literal planner reads
+  learned  LaunchPilot's deterministic view: supplier memory (median real lead time since
+           task A5, mean + 1 sd before it; amplified announced delays) on top of everything
+           the literal planner reads. The app itself alerts on the probabilistic projection;
+           see evaluate.py for the proof that matches the app.
 
 Usage:  python3 docs/evaluation/sweep.py --repo . [--seeds 1-20,42] [--detail 42]
 The repo must contain the kit's generate_data.py and projection.py. Standard library only.

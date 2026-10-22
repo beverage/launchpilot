@@ -148,3 +148,9 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   tokens_in        INT,
   tokens_out       INT
 );
+
+-- Version du jeu de données chargé (empreinte des CSV), pour recharger les tables de base quand data/ change
+CREATE TABLE IF NOT EXISTS app_meta (
+  key              TEXT PRIMARY KEY,
+  value            TEXT
+);

@@ -133,7 +133,7 @@ for sid, _, cat, ann, moq, *_ in SUPPLIERS:
 # commandes ouvertes pour couvrir le lancement (dates promises OK, réalité parfois non)
 OPEN = [
   ("SUP-POM", "CMP-POM-01", 20000, date(2026, 8, 3)),
-  ("SUP-POM", "CMP-POM-01", 20000, date(2026, 8, 31)),
+  ("SUP-POM", "CMP-POM-01", 30000, date(2026, 9, 4)),    # on paper (42 j) it lands 16 Oct, two weeks before launch
   ("SUP-FLA", "CMP-FLA-30", 20000, date(2026, 8, 10)),
   ("SUP-FLA", "CMP-FLA-50", 20000, date(2026, 8, 17)),
   ("SUP-COF", "CMP-COF-NOEL", 12000, date(2026, 8, 24)),
@@ -171,7 +171,7 @@ def ev(day_offset, etype, payload, disruption=True):
 demand_mult = {}      # (pid, week) -> multiplicateur réel
 DISRUPTIONS = []
 # 1-6 : retards fournisseurs (le fournisseur annonce un nouveau délai ; la réalité peut être pire)
-for i, (cid, extra_announced) in enumerate([("CMP-POM-01", 10), ("CMP-POM-01", 7), ("CMP-COF-NOEL", 12),
+for i, (cid, extra_announced) in enumerate([("CMP-POM-01", 10), ("CMP-POM-01", 14), ("CMP-COF-NOEL", 12),
                                             ("CMP-FLA-30", 5), ("CMP-ETU-01", 3), ("CMP-COF-NOEL", 6)]):
     po = po_by(cid)[i % len(po_by(cid))]
     sid = po["supplier_id"]; s = sup[sid]

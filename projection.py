@@ -1,19 +1,25 @@
 """
-LaunchPilot — moteur de projection déterministe (l'outil que les agents appellent).
+LaunchPilot — moteur de projection (l'outil que les agents appellent). Tout est déterministe et traçable.
 
-Deux modes, mêmes données d'entrée (jamais la vérité terrain) :
-  - "naive"   : croit les dates promises (y compris les nouvelles dates annoncées) et la prévision v1.
-  - "learned" : utilise la mémoire fournisseur (délai prudent = moyenne réelle + 1 écart-type, appris sur l'historique livré),
-                amplifie les retards annoncés des fournisseurs peu fiables,
-                applique les pics de sell-out et les livraisons partielles vus dans le flux.
+Trois vues, mêmes données d'entrée (jamais la vérité terrain) :
+  - "naive"   : l'ancienne baseline : croit les dates promises et la prévision v1, ignore les pics de ventes
+                et les confirmations de commande. Conservée pour comparaison seulement.
+  - "literal" : le planificateur attentif sans mémoire : lit chaque message au pied de la lettre (nouvelles dates
+                promises, quantités confirmées, pics de ventes) mais croit les délais annoncés par les fournisseurs.
+  - "learned" : LaunchPilot : tout ce que lit le planificateur attentif, plus la mémoire fournisseur
+                (délai retenu = médiane des délais réels livrés ; retard annoncé amplifié par le ratio réel/annoncé).
+
+project_prob() rejoue la vue "learned" en tirant chaque délai dans l'historique réel du fournisseur :
+probabilité de rupture par semaine, semaine médiane de rupture, bande de stock p10 / p50 / p90.
 
 Usage en lib :
-    from projection import load, project
+    from projection import load, project, project_prob
     db = load("data")
-    project(db, events_seen, mode="learned")  -> {component_id: {"stockout_week": ..., "min_stock": ..., "evidence": [...]}}
+    project(db, events_seen, mode="learned")  -> {component_id: {"stockout_week", "min_stock", "evidence", "series"}}
+    project_prob(db, events_seen)             -> {component_id: {"p_by_week", "p_window", "median_week", "p10", "p50", "p90", ...}}
 """
-import csv, json, os
-from datetime import date, timedelta, datetime
+import csv, json, os, random, statistics
+from datetime import date, timedelta
 
 def _d(s): return date.fromisoformat(s) if s else None
 def monday(d): return d - timedelta(days=d.weekday())
@@ -27,7 +33,7 @@ def load(path="data"):
     return db
 
 def supplier_memory(db):
-    """Mémoire fournisseur = ce que la vue SQL supplier_reliability calcule."""
+    """Mémoire fournisseur = ce que la vue SQL supplier_reliability calcule, plus l'échantillon des délais réels."""
     mem = {}
     for s in db["suppliers"]:
         d = [(_d(p["actual_date"]) - _d(p["order_date"])).days for p in db["purchase_orders"]
@@ -38,24 +44,24 @@ def supplier_memory(db):
         late = [p["po_id"] for p in db["purchase_orders"] if p["supplier_id"] == s["supplier_id"]
                 and p["status"] == "delivered" and _d(p["actual_date"]) > _d(p["promised_date"])]
         mem[s["supplier_id"]] = {"announced": ann, "real_mean": round(real, 1), "std": round(sd, 1),
-                                 "prudent": round(real + sd), "n": len(d),
-                                 "ratio": real / ann, "late_po_ids": late}
+                                 "typical": round(statistics.median(d)) if d else ann,   # délai retenu
+                                 "samples": d, "n": len(d), "ratio": real / ann, "late_po_ids": late}
     return mem
 
-def project(db, events_seen, mode="learned", window_end=None, extra_pos=None, demand_scale=None):
-    """extra_pos : commandes simulées [{component_id, qty, arrival(date), label}] ;
-    demand_scale : {product_id: facteur} pour simuler une réduction de lancement."""
-    sim_today = _d(db["gt"]["sim_today"])
+def _frame(db, window_end=None):
+    """Les constantes d'une projection : semaines, stock initial, nomenclature, prévision."""
     window_end = window_end or _d(db["gt"]["window_end"])
-    mem = supplier_memory(db)
     stock = {r["item_id"]: int(r["qty"]) for r in db["inventory"] if r["item_type"] == "component"}
     bom = {}
     for r in db["bom"]:
         bom.setdefault(r["product_id"], {})[r["component_id"]] = float(r["qty_per_unit"])
     fc = {(_d(r["week"]), r["product_id"]): int(r["qty"]) for r in db["forecasts"]}
     weeks = sorted({w for w, _ in fc if w <= window_end})
+    return weeks, stock, bom, fc
 
-    # état des commandes ouvertes
+def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_scale=None, weeks=None):
+    """État des commandes ouvertes et des multiplicateurs de demande après lecture des événements.
+    lead_time(supplier_id, announced) donne le délai utilisé pour une commande ouverte (vue learned)."""
     open_pos = {p["po_id"]: dict(p) for p in db["purchase_orders"] if p["status"] == "open"}
     for p in open_pos.values():
         p["arrival"] = _d(p["promised_date"])
@@ -63,38 +69,41 @@ def project(db, events_seen, mode="learned", window_end=None, extra_pos=None, de
         p["evidence"] = [f"purchase_orders:{p['po_id']}"]
         if mode == "learned":
             m = mem[p["supplier_id"]]
-            p["arrival"] = _d(p["order_date"]) + timedelta(days=m["prudent"])
-            p["evidence"].append(f"supplier_reliability:{p['supplier_id']} (annoncé {m['announced']} j, réel {m['real_mean']} ± {m['std']} j sur {m['n']} livraisons, délai prudent {m['prudent']} j)")
+            p["arrival"] = _d(p["order_date"]) + timedelta(days=lead_time(p["supplier_id"], m["announced"]))
+            p["evidence"].append(f"supplier_reliability:{p['supplier_id']} (annoncé {m['announced']} j, réel {m['real_mean']} ± {m['std']} j sur {m['n']} livraisons, délai retenu {m['typical']} j)")
     for i, x in enumerate(extra_pos or []):
         open_pos[f"SIM-{i}"] = {"po_id": f"SIM-{i}", "component_id": x["component_id"], "qty": x["qty"],
                                 "qty_eff": int(x["qty"]), "arrival": x["arrival"], "supplier_id": x.get("supplier_id", ""),
                                 "evidence": [f"simulation:{x.get('label', 'commande simulée')}"]}
     demand_mult = {}
     for pid, f in (demand_scale or {}).items():
-        for w in weeks:
+        for w in weeks or []:
             demand_mult[(pid, w)] = f
     for e in events_seen:
         t, pl = e["event_type"], e["payload"]
         if t == "supplier_delay" and pl["po_id"] in open_pos:
             p = open_pos[pl["po_id"]]
-            if mode == "naive":
-                p["arrival"] = _d(pl["new_promised_date"])
-            else:
+            if mode == "learned":
                 p["arrival"] += timedelta(days=round(pl["announced_delay_days"] * mem[p["supplier_id"]]["ratio"]))
+            else:
+                p["arrival"] = _d(pl["new_promised_date"])
             p["evidence"].append(f"events:{e['event_id']}")
-        elif t == "sellout_spike" and mode == "learned":
+        elif t == "sellout_spike" and mode != "naive":
             for w in pl["weeks_affected"]:
                 k = (pl["product_id"], _d(w))
                 demand_mult[k] = demand_mult.get(k, 1.0) * pl["observed_vs_forecast"]
-        elif t == "po_confirmed" and pl["po_id"] in open_pos and mode == "learned":
+        elif t == "po_confirmed" and pl["po_id"] in open_pos and mode != "naive":
             p = open_pos[pl["po_id"]]
             p["qty_eff"] = int(pl["confirmed_qty"])
             if p["qty_eff"] < int(p["qty"]):
                 p["evidence"].append(f"events:{e['event_id']} (livraison partielle {p['qty_eff']}/{p['qty']})")
+    return open_pos, demand_mult
 
+def _run(weeks, stock, bom, fc, open_pos, demand_mult):
+    """Une trajectoire de stock par composant : {cid: {"series": [(week, stock)], "first_neg": week|None, "min_stock", "evidence"}}."""
     out = {}
     for cid in stock:
-        s, first_neg, min_s, ev = stock[cid], None, stock[cid], set([f"inventory:{cid}"])
+        s, first_neg, min_s, ev = stock[cid], None, stock[cid], {f"inventory:{cid}"}
         series = []
         for w in weeks:
             for p in open_pos.values():
@@ -110,6 +119,49 @@ def project(db, events_seen, mode="learned", window_end=None, extra_pos=None, de
             min_s = min(min_s, s)
             if s < 0 and first_neg is None:
                 first_neg = w
-        out[cid] = {"stockout_week": first_neg.isoformat() if first_neg else None,
-                    "min_stock": min_s, "evidence": sorted(ev), "series": series}
+        out[cid] = {"first_neg": first_neg, "min_stock": min_s, "evidence": sorted(ev), "series": series}
+    return out
+
+def project(db, events_seen, mode="learned", window_end=None, extra_pos=None, demand_scale=None):
+    """Projection déterministe. En mode learned le délai retenu est la médiane des délais réels livrés.
+    extra_pos : commandes simulées [{component_id, qty, arrival(date), label}] ;
+    demand_scale : {product_id: facteur} pour simuler une réduction de lancement."""
+    weeks, stock, bom, fc = _frame(db, window_end)
+    mem = supplier_memory(db)
+    open_pos, demand_mult = _open_orders(db, events_seen, mode, mem, lambda sid, ann: mem[sid]["typical"],
+                                         extra_pos, demand_scale, weeks)
+    out = {}
+    for cid, r in _run(weeks, stock, bom, fc, open_pos, demand_mult).items():
+        out[cid] = {"stockout_week": r["first_neg"].isoformat() if r["first_neg"] else None,
+                    "min_stock": r["min_stock"], "evidence": r["evidence"], "series": r["series"]}
+    return out
+
+def project_prob(db, events_seen, n=200, seed=0, window_end=None, extra_pos=None, demand_scale=None):
+    """Projection probabiliste : n tirages où chaque commande ouverte reçoit un délai tiré dans l'historique
+    réel livré de son fournisseur (retards annoncés amplifiés comme en mode learned).
+    Renvoie par composant : p_by_week {semaine: P(rupture au plus tard cette semaine)}, p_window,
+    median_week (None si la rupture est improbable), p10 / p50 / p90 (bande de stock), min_stock_p50."""
+    weeks, stock, bom, fc = _frame(db, window_end)
+    mem = supplier_memory(db)
+    rng = random.Random(seed)
+    runs = {cid: [] for cid in stock}
+    for _ in range(n):
+        draw = {sid: (rng.choice(m["samples"]) if m["samples"] else m["announced"]) for sid, m in mem.items()}
+        open_pos, demand_mult = _open_orders(db, events_seen, "learned", mem, lambda sid, ann: draw[sid],
+                                             extra_pos, demand_scale, weeks)
+        for cid, r in _run(weeks, stock, bom, fc, open_pos, demand_mult).items():
+            runs[cid].append(r)
+    out = {}
+    for cid, rs in runs.items():
+        firsts = [r["first_neg"] for r in rs]
+        p_by_week = {w.isoformat(): sum(1 for f in firsts if f and f <= w) / n for w in weeks}
+        hit = sorted(f for f in firsts if f)
+        median_week = hit[len(hit) // 2].isoformat() if len(hit) * 2 > n else None   # médiane sur tous les tirages
+        levels = list(zip(*[[s for _, s in r["series"]] for r in rs]))               # par semaine, n valeurs
+        q = lambda vals, p: sorted(vals)[min(n - 1, int(p * n))]
+        out[cid] = {"p_by_week": p_by_week, "p_window": len(hit) / n, "median_week": median_week,
+                    "p10": [(w.isoformat(), q(v, 0.10)) for w, v in zip(weeks, levels)],
+                    "p50": [(w.isoformat(), q(v, 0.50)) for w, v in zip(weeks, levels)],
+                    "p90": [(w.isoformat(), q(v, 0.90)) for w, v in zip(weeks, levels)],
+                    "min_stock_p50": min(q(v, 0.50) for v in levels)}
     return out
