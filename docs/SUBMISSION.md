@@ -64,7 +64,7 @@ One end-to-end journey on the deployed app, recorded after the 15:00 freeze and 
 3. 0:50 EV-019, the partial pump delivery: the pump alert turns critical, launch week, 85 %, with its evidence rows.
 4. 1:20 Propose solutions: costed options in euros; choose one.
 5. 1:50 The memory learns: show Pompes Atlas on the Supplier memory tab (60.3-day average against 42 announced, 14 late deliveries out of 14), then press Fast-forward to today. The pump receipt of 21 October lands: 12,000 of 20,000, 79 days after the order. Back on the tab, the average moves to 61.5 days, the planning lead time from 60 to 62, and all 15 deliveries are late. (The other receipts barely move their suppliers' figures, so show this one.)
-6. 2:15 The same fast-forward brings a real BODACC notice for the gift-box supplier (label it as a demo mapping).
+6. 2:15 The same fast-forward brings a real BODACC notice for the gift-box supplier (label it as a demo mapping). The alert sizes what is at stake: 12,000 of the 21,000 launch boxes are still on order with that supplier; if this order does not arrive, the gift set runs out the week of 16 November instead of 14 December, about 1.07 M€ more at risk, with no second source. Say "if this order does not arrive": the real company keeps trading under court supervision.
 7. 2:35 Proof: 112 vs 97 of 120 against the planner without memory; cost and latency per event.
 8. 2:55 What is live (Claude agents, Kafka streams, BODACC) and what is recorded (synthetic data, fixed scenario).
 
