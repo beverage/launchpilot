@@ -287,3 +287,30 @@ def cost_usd(tokens_in, tokens_out, model):
     if not price:
         return None
     return (tokens_in or 0) / 1e6 * price[0] + (tokens_out or 0) / 1e6 * price[1]
+
+
+def supplier_exposure(events_seen, supplier_id):
+    """What-if for a public notice on a supplier: its open orders never arrive (delivered ones stay, they are in stock).
+    Per component: stockout week as is and if the orders never arrive, extra units short, lost revenue at shelf price."""
+    open_pos = [p for p in DB["purchase_orders"] if p["status"] == "open" and p["supplier_id"] == supplier_id]
+    out = []
+    for cid in components_of(supplier_id):
+        pos_c = [p for p in open_pos if p["component_id"] == cid]
+        if not pos_c:
+            continue
+        base = project(DB, events_seen, "learned")[cid]
+        without = project(DB, events_seen, "learned", exclude_pos=[p["po_id"] for p in pos_c])[cid]
+        extra = unserved_units(cid, without["series"]) - unserved_units(cid, base["series"])
+        price = _avg_price(_consumers(cid))
+        received = sum(int(p.get("delivered_qty") or p["qty"]) for p in DB["purchase_orders"]
+                       if p["component_id"] == cid and p["status"] == "delivered" and p.get("actual_date") and _d(p["actual_date"]) >= SIM_TODAY)
+        wk = without["stockout_week"]
+        out.append({"component_id": cid, "name": comp_label(cid), "supplier": SUP[supplier_id]["name"],
+                    "open_orders": [{"po_id": p["po_id"], "qty": int(p["qty"]), "promised_date": p["promised_date"]} for p in pos_c],
+                    "open_qty": sum(int(p["qty"]) for p in pos_c), "received_since_snapshot_qty": received,
+                    "stockout_week_as_is": base["stockout_week"], "stockout_week_if_orders_never_arrive": wk,
+                    "extra_units_short": extra, "lost_revenue_eur_if_missing": round(extra * price),
+                    "second_source": SUP[COMP[cid]["alt_supplier_id"]]["name"] if COMP[cid]["alt_supplier_id"] else None,
+                    "severity_if_missing": "high" if wk and _d(wk) <= LAUNCH_WEEK + timedelta(weeks=1) else ("medium" if wk else None),
+                    "evidence": [f"inventory:{cid}"] + [f"purchase_orders:{p['po_id']}" for p in pos_c]})
+    return out

@@ -59,11 +59,11 @@ def _frame(db, window_end=None):
     weeks = sorted({w for w, _ in fc if w <= window_end})
     return weeks, stock, bom, fc
 
-def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_scale=None, weeks=None):
+def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_scale=None, weeks=None, exclude_pos=None):
     """État des commandes ouvertes et des multiplicateurs de demande après lecture des événements.
     lead_time(supplier_id, announced) donne le délai utilisé pour une commande ouverte (vue learned)."""
     sim_today = _d(db["gt"]["sim_today"])
-    open_pos = {p["po_id"]: dict(p) for p in db["purchase_orders"] if p["status"] == "open"}
+    open_pos = {p["po_id"]: dict(p) for p in db["purchase_orders"] if p["status"] == "open" and p["po_id"] not in (exclude_pos or ())}
     # Orders delivered since the stock snapshot are known arrivals: fixed date and quantity, no uncertainty left.
     for p in db["purchase_orders"]:
         if p["status"] == "delivered" and p.get("actual_date") and _d(p["actual_date"]) >= sim_today:
@@ -130,14 +130,15 @@ def _run(weeks, stock, bom, fc, open_pos, demand_mult):
         out[cid] = {"first_neg": first_neg, "min_stock": min_s, "evidence": sorted(ev), "series": series}
     return out
 
-def project(db, events_seen, mode="learned", window_end=None, extra_pos=None, demand_scale=None):
+def project(db, events_seen, mode="learned", window_end=None, extra_pos=None, demand_scale=None, exclude_pos=None):
     """Projection déterministe. En mode learned le délai retenu est la médiane des délais réels livrés.
     extra_pos : commandes simulées [{component_id, qty, arrival(date), label}] ;
-    demand_scale : {product_id: facteur} pour simuler une réduction de lancement."""
+    demand_scale : {product_id: facteur} pour simuler une réduction de lancement ;
+    exclude_pos : commandes ouvertes supposées ne jamais arriver (what-if fournisseur)."""
     weeks, stock, bom, fc = _frame(db, window_end)
     mem = supplier_memory(db)
     open_pos, demand_mult = _open_orders(db, events_seen, mode, mem, lambda sid, ann: mem[sid]["typical"],
-                                         extra_pos, demand_scale, weeks)
+                                         extra_pos, demand_scale, weeks, exclude_pos)
     out = {}
     for cid, r in _run(weeks, stock, bom, fc, open_pos, demand_mult).items():
         out[cid] = {"stockout_week": r["first_neg"].isoformat() if r["first_neg"] else None,
