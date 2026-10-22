@@ -174,6 +174,8 @@ with tab_launch:
                    "po_confirmed": lambda: S["feed_confirmed"].format(po=p["po_id"], qty=p["confirmed_qty"]),
                    "noise": lambda: p.get("note", ""),
                    "supplier_email": lambda: S["feed_email"].format(from_name=p.get("from_name", ""), subject=p.get("subject", "")),
+                   "channel_orders": lambda: (lambda c: S["feed_orders"].format(product=T.comp_label(p["product_id"]), expected=c["expected_units"], forecast=c["forecast_units"],
+                                                                                 n=len(c["weeks_affected"]), ratio=c["observed_vs_forecast"]))(T.orders_to_demand_change(p)),
                    "po_delivered": lambda: S["feed_delivery"].format(po=p["po_id"], qty=p["quantity_delivered"], partial=S["feed_partial"] if p.get("partial") else ""),
                    "supplier_insolvency": lambda: S["feed_insolvency"].format(company=p.get("company_name", ""), procedure=p.get("procedure", "")),
                    }.get(e["event_type"], lambda: S["feed_other"].format(kind=e["event_type"]))()
