@@ -41,8 +41,10 @@ def process_live(store, row, live):
             name = (pl.get("company_name") or "").strip().lower()
             hit = any(name == s["name"].lower() or (pl.get("siren") and pl.get("siren") == s["siren"]) for s in master) \
                 or pl.get("supplier_id") in {s["supplier_id"] for s in master}
+            same_sector = [s["name"] for s in master if pl.get("activity_code") and s["activity_code"] == pl.get("activity_code")]
             run = _note(store, row, (f"EXPOSURE: {pl.get('company_name')} ({pl.get('procedure')}) is one of our suppliers" if hit
-                                     else f"no exposure: {pl.get('company_name')} ({pl.get('procedure')}) is not one of our suppliers"))
+                                     else f"no direct exposure: {pl.get('company_name')} ({pl.get('procedure')}) is not one of our suppliers"
+                                          + (f"; same sector ({pl.get('activity_code')}) as {', '.join(same_sector)}, worth a check" if same_sector else "")))
     else:
         run = _note(store, row, f"{t}: no effect on the projection yet")
     store.mark_processed(row["event_id"])
