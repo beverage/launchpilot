@@ -15,10 +15,11 @@ The organisers' form has eight fields, six of them required. Answers can be chan
 
 ## One-line pitch
 
-Pick one:
+Abstract on purpose: no named customer, and both halves of the product, reacting to business events and learning how suppliers really deliver. Pick one:
 
-- LaunchPilot warns an independent cosmetics brand weeks before a launch stockout, by learning how late each supplier really delivers and reading the supplier emails and public notices nobody has time to read.
-- An agent that dates a product-launch stockout weeks ahead, because it remembers how late each supplier really delivers.
+- LaunchPilot sees a launch stockout coming weeks ahead: its agents react to every supplier message, delivery and business event as it lands, and learn how each supplier really performs.
+- Agents that react to every business event in a supply chain and learn from every delivery, to flag a launch stockout weeks before it happens.
+- LaunchPilot reads every supply-chain event as it happens and learns how each supplier really delivers, so a launch stockout shows up weeks before it hits.
 
 ## The data layer in action
 
