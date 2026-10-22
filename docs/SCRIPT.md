@@ -10,7 +10,7 @@ A draft for Imène to rehearse and amend. It follows the video shot list in [SUB
 
 **0:40 The filler.** 30 September: the contract manufacturer loses capacity a third time. The bottles and pumps are there, but the filling line is not. LaunchPilot fills the gift set first and sees that Sérum Éclat cannot be filled from launch week: 1,107 units, 54,000 euros. Moving the overflow to the second plant saves all of it.
 
-**1:05 The pump.** 1 October: an email in French. The pump supplier will deliver only 12,000 of 20,000. LaunchPilot reads it, and because it remembers that this supplier has been late on every delivery, it says the pumps run out in the week of 9 November, the week after launch, at 91 percent. A planner who reads the same email but trusts the announced lead times sees it on 21 December.
+**1:05 The pump.** 1 October: an email in French. The pump supplier will deliver only 12,000 of 20,000. LaunchPilot reads it, and because it remembers that this supplier has been late on every delivery, it says the pumps run out in the week of 9 November, the week after launch, at 91 percent. A planner who reads the same email but trusts the announced lead times still sees it on 28 December.
 
 **1:30 The decision.** Doing nothing puts 571,000 euros at risk. A rush order from the backup supplier would land on 23 November, after the gap, so LaunchPilot says so. The best move is allocation: fill the gift set first, 437,000 euros at risk.
 
