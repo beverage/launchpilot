@@ -12,9 +12,9 @@ This table is the task board. Status starts with one of `todo`, `doing`, `review
 
 | Id | Task | Done when | Priority | Owner | Status |
 | --- | --- | --- | --- | --- | --- |
-| A0 | Port the kit: history preserved, idempotent schema, reset that spares live events, committed `__pycache__` removed | App runs locally against Aiven PostgreSQL and the journey works | Must | app side | next |
+| A0 | Port the kit: history preserved, idempotent schema, reset that spares live events, committed `__pycache__` removed | App runs locally against Aiven PostgreSQL and the journey works | Must | Alex (kickoff session) | done, merged to main 10:50; journey verified against accel-pg with live Claude |
 | C0 | Deploy on Alex's Aiven Runtime from this repo | Public URL runs the journey | Must | streams side | scripts ready, dry-run tested |
-| A1 | Live Claude on the deployed app | Traces tab shows a live run with tool calls | Must | app side | verified locally at 10:40 |
+| A1 | Live Claude on the deployed app | Traces tab shows a live run with tool calls | Must | Alex (kickoff session) | todo, verified locally at 10:40; waiting for the C0 URL |
 | A5 | Honest proof: fair baseline, timing metric, calibrated probability, proof tab and README updated | Proof tab shows the fair comparison; README numbers replaced | Must | app side | new, from the evaluation |
 | A2 | Free-text supplier email event | An email event in the stream produces a cited alert live | Must | app side (consumer), streams side (producer) | from the brief |
 | A3 | Memory that learns live (`po_delivered`) | Supplier memory tab changes during the demo | Must | same | from the brief |
