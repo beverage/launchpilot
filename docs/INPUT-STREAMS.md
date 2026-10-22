@@ -1,0 +1,77 @@
+# Input streams and the events contract
+
+LaunchPilot is judged as an event-driven agent whose data layer does real work. This note ranks the streams worth adding today, records what the kit's recorded stream already carries, and fixes the contract between producers (pollers, replay) and the consumer (the watch agent), so the two can be built in parallel.
+
+## Ranked shortlist
+
+| # | Stream | Form | Why | Effort |
+| --- | --- | --- | --- | --- |
+| 1 | Supplier messages | Emails or portal notes as free text, in French; the agent extracts the order, the new date and the quantity | The real channel at an SMB, and the one place the language model is indispensable | 1 to 2 h (producer + prompt) |
+| 2 | Deliveries (`po_delivered`) | Structured: order, actual date, quantity | Updates the supplier memory during the demo, so the learning is visible, which the challenge brief rewards | 1 h |
+| 3 | Supplier health, real and live | Collective procedures from BODACC and legal status from the French company registry | The only genuinely live public data in the demo, and the best answer to "it is all synthetic" | 1 to 2 h |
+| 4 | Sell-out | Weekly units per channel (e-shop, selective retail, pharmacy), no "spike" label | Detecting the deviation from forecast becomes the agent's work instead of label reading | 1 h |
+| 5 | Order confirmations, shipping notices, partial shipments | Structured, already in the kit | Keep | 0 |
+| 6 | Public holidays and plant closures | Dates from a holidays API, or a known supplier closure | Only if the projection uses them: French suppliers close in August and at Christmas, which shifts lead times | 1 h |
+| 7 | Contract-manufacturer capacity | Already generated | Only if the engine uses it; otherwise drop the event type | 1 h or delete |
+
+Dropped: weather (decorative for packaging supply), transport tracking and commodity indices (no time). News search credits from a sponsor can add context to an alert later; optional.
+
+## What the recorded stream already carries
+
+`data/events.jsonl` holds 35 events from 8 September to 22 October 2026: 20 disruptions and 15 noise. Types and payload keys:
+
+- `supplier_delay` (6): `po_id`, `supplier_id`, `component_id`, `new_promised_date`, `announced_delay_days`
+- `sellout_spike` (6): `product_id`, `channel`, `observed_vs_forecast`, `weeks_affected`
+- `capacity_drop` (4): `subcontractor_id`, `capacity_drop_rate`, `weeks_affected` (not used by the projection yet)
+- `po_confirmed` (4): `po_id`, `component_id`, `confirmed_date`, `confirmed_qty` (a quantity below the order is a partial delivery; EV-019 is the demo's turning point)
+- `noise` (15): `note`
+
+The recorded event ids are `EV-001` to `EV-035`.
+
+## The events contract
+
+Producers and the consumer share one table in Aiven for PostgreSQL:
+
+```sql
+CREATE TABLE IF NOT EXISTS events (
+  event_id   TEXT PRIMARY KEY,
+  ts         TIMESTAMP NOT NULL,
+  event_type TEXT NOT NULL,
+  payload    JSONB NOT NULL,
+  processed  BOOLEAN DEFAULT FALSE
+);
+```
+
+Rules:
+
+- **Ids carry a prefix per producer** so the demo's reset can clear the recorded scenario without touching live rows: `EV-` recorded scenario, `MAIL-` supplier messages, `DLV-` deliveries, `BOD-` BODACC notices, `HOL-` holidays, `SELL-` sell-out. Ids must be stable across polls (derive them from the source's own id) so re-polling is idempotent with `ON CONFLICT DO NOTHING`.
+- **Timestamps** are ISO 8601 without a timezone, Paris local time, like the recorded ones, and never in the future. The demo's clock is the timestamp of the latest event the app has seen; the recorded story runs from 7 September to 22 October 2026 with the launch on 2 November, so real events dated today fit inside it.
+- **`processed`** is written by the consumer only. Producers insert `FALSE`.
+- **Payload** is a JSON object with the keys below. Anything the agent needs to cite must be in the payload or in a row it can name (`table:id`).
+- Reset in the app deletes only `EV-%` events and the agent outputs; live rows survive.
+
+Proposed new event types:
+
+| event_type | Payload keys | Producer | Consumer behaviour |
+| --- | --- | --- | --- |
+| `supplier_email` | `from`, `subject`, `body`, `received_at`, optional `supplier_id` | replay or mailbox poller | the agent extracts order, new date and quantity, then projects and alerts with the email cited |
+| `po_delivered` | `po_id`, `supplier_id`, `component_id`, `delivered_qty`, `actual_date` | replay or ERP export | marks the order delivered in `purchase_orders`; `supplier_reliability` recomputes; the next projection uses it |
+| `supplier_insolvency` | `siren`, `company_name`, `activity_code`, `procedure`, `court`, `judgment_date`, `publication_date`, `notice_url`, `source`, optional `supplier_id` | BODACC poller | the agent checks exposure against the supplier master and the open orders; no match means "no exposure, monitoring" |
+| `holiday_closure` | `country`, `date`, `name`, `source`, optional `supplier_id` | holidays poller | the projection shifts open-order arrivals that fall in a closure window |
+| `sellout_weekly` | `week`, `product_id`, `channel`, `units`, `forecast_units` | replay or shop export | the agent or the engine detects the deviation and scales the forecast for the affected weeks |
+
+## Mapping real public data to a fictional brand
+
+The five suppliers are fictional and have no SIREN. Do not attach a real company's insolvency notice to a fictional "unreliable" supplier: the reliability numbers are synthetic and the pairing would read as a claim about a real business.
+
+Safer options, in order:
+
+1. **Category watch.** The BODACC poller follows collective procedures for real packaging-sector companies (glass, plastics, cartons). The agent reports exposure against our supplier master and open orders. With no match it says so and keeps monitoring. Everything shown is a real public notice, nothing is implied about any company's lead times.
+2. **Optional mapping for the demo.** Add a nullable `siren` column to `suppliers` and map one fictional supplier to a real company with a recent notice, with an on-screen label "mapping for demo purposes". Only if the team wants a direct hit on stage.
+
+## Sources and verification
+
+- **BODACC** (DILA), dataset `annonces-commerciales` on `bodacc-datadila.opendatasoft.com`, open licence, published five times a week. Filter `familleavis="collective"` for collective procedures; the SIREN is in `registre`; useful fields: `dateparution`, `familleavis_lib`, `typeavis_lib`, `commercant`, `tribunal`, `jugement`, `url_complete`. Verified 21 October: HTTP 200 in about 0.5 s, no key, about 4,900 collective-procedure notices in the previous seven days.
+- **API Recherche d'entreprises** (`recherche-entreprises.api.gouv.fr/search?q=...`): legal status, directors, head office, activity code; open, no key, daily updates. Verified 21 October.
+- **Public holidays:** Nager.Date, no key.
+- **Weather** (Open-Meteo) was considered and dropped.

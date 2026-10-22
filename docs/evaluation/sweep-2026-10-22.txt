@@ -1,0 +1,43 @@
+Seeds 1-20,42: generator + projection from /Users/alexbeverage/Code/Apps/accel-hackathon/repos/launchPilot
+
+seed  1 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed  2 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed  3 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed  4 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed  5 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed  6 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed  7 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed  8 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed  9 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed 10 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed 11 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed 12 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed 13 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed 14 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed 15 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed 16 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 3/4 fa0 off1 | lea 4/4 fa0 off0 | pump true 2026-11-09 learned 2026-11-09
+seed 17 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed 18 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed 19 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 4/4 fa0 off0 | pump true 2026-12-07 learned 2026-12-07
+seed 20 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 4/4 fa0 off0 | lea 3/4 fa0 off1 | pump true 2026-12-07 learned 2026-11-09
+seed 42 | real: COF-NOEL, FLA-30, FLA-50, POM-01 | nai 1/4 fa0 off0 | lit 3/4 fa0 off1 | lea 4/4 fa0 off0 | pump true 2026-11-09 learned 2026-11-09
+
+Totals (detected = within one week of the true date at some point in the replay)
+  naive    detected 21/84 (25%) | false alarms 0 | final date wrong by >1 week: 0 | signed error of final date +1.00 weeks (n=21)
+  literal  detected 82/84 (98%) | false alarms 0 | final date wrong by >1 week: 2 | signed error of final date +0.10 weeks (n=84)
+  learned  detected 73/84 (87%) | false alarms 0 | final date wrong by >1 week: 11 | signed error of final date -0.52 weeks (n=84)
+
+Variation between seeds: 2 distinct sets of true stockouts; pump true stockout week: {'2026-11-09': 2, '2026-12-07': 19}
+
+Seed 42: final prediction per component
+  CMP-FLA-30   truth 2026-12-21 | naive None       | literal 2026-12-21 | learned 2026-12-21
+  CMP-FLA-50   truth 2026-12-14 | naive 2026-12-21 | literal 2026-12-14 | learned 2026-12-14
+  CMP-POM-01   truth 2026-11-09 | naive None       | literal 2026-12-07 | learned 2026-11-09
+  CMP-ETU-01   truth None       | naive None       | literal None       | learned None      
+  CMP-ETU-02   truth None       | naive None       | literal None       | learned None      
+  CMP-COF-NOEL truth 2026-12-14 | naive None       | literal 2026-12-14 | learned 2026-12-14
+
+Seed 42: first event after which the pump's true week (2026-11-09) is predicted within one week
+  naive    None
+  literal  None
+  learned  EV-019 (2026-10-01)
