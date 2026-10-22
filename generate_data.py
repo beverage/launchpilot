@@ -164,6 +164,18 @@ for cid, stock_now in _stock_now.items():
     for i, p_ in enumerate(main):
         p_["qty"] = base + (moq if i < extra else 0)
 
+# Past Coffrets Prestige deliveries were boxes for earlier seasonal gift sets: relabel them by delivery date so the 2026
+# Christmas box has no purchase history. Done after the loop (no random draw moves); these components have no BOM row and no
+# stock row, so the projection never sees them and the supplier memory, which reads dates per supplier, is unchanged.
+PAST_SETS = [("2025-09-01", "CMP-COF-ETE-25", "Coffret Été 2025"), ("2025-12-01", "CMP-COF-NOEL-25", "Coffret Noël 2025"),
+             ("2026-06-15", "CMP-COF-FDM-26", "Coffret Fête des Mères 2026"), (None, "CMP-COF-ETE-26", "Coffret Été 2026")]
+for p_ in pos:
+    if p_["component_id"] == "CMP-COF-NOEL" and p_["status"] == "delivered":
+        for cutoff, cid, _ in PAST_SETS:
+            if cutoff is None or p_["actual_date"] < date.fromisoformat(cutoff):
+                p_["component_id"] = cid
+                break
+
 # commandes ouvertes pour couvrir le lancement (dates promises OK, réalité parfois non)
 OPEN = [
   ("SUP-POM", "CMP-POM-01", 20000, date(2026, 8, 3)),
@@ -289,7 +301,8 @@ def write(name, header, rows):
 
 write("suppliers.csv", ["supplier_id","name","category","announced_lead_time_days","moq","unit_cost_eur","activity_code","siren"],
       [s[:6] + (ACTIVITY[s[0]], SIREN.get(s[0], "")) for s in SUPPLIERS])
-write("components.csv", ["component_id","name","category","main_supplier_id","alt_supplier_id"], COMPONENTS)
+write("components.csv", ["component_id","name","category","main_supplier_id","alt_supplier_id"],
+      COMPONENTS + [(cid, name, "coffret", "SUP-COF", None) for _, cid, name in PAST_SETS])
 write("products.csv", ["product_id","name","family","price_eur","margin_rate","is_launch","launch_week"],
       [(p_[0], p_[1], p_[2], p_[3], p_[4], p_[5], 45 if p_[5] else "") for p_ in PRODUCTS])
 write("bom.csv", ["product_id","component_id","qty_per_unit"],

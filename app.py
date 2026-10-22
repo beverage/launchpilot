@@ -50,9 +50,10 @@ live_ok = A.claude_available()
 due_now = store.list_unprocessed(clock)
 
 
-def process(event, live):
-    """Analyse one recorded event, after draining the live rows due by then (an email may carry the same news first)."""
-    for r in W.drain(store, event["ts"], live):
+def process(event, live, live_rows=None, selective=False):
+    """Analyse one recorded event, after draining the live rows due by then (an email may carry the same news first).
+    live_rows overrides the mode for the live rows; selective keeps the agent for emails and matching notices only."""
+    for r in W.drain(store, event["ts"], live if live_rows is None else live_rows, selective=selective):
         st.session_state.log.append(r)
     twin = store.superseded_by(event["event_id"])
     if twin:
@@ -93,7 +94,7 @@ with tab_launch:
     k3.metric(S["critical_alerts"], len(high))
     k4.metric(S["revenue_at_risk"], eur(risk))
 
-    c1, c2, c3, c4, c5 = st.columns([1.1, 1.2, 1.5, 1.4, 0.8])
+    c1, c2, c3, c6, c4, c5 = st.columns([1.0, 1.0, 1.4, 1.2, 1.3, 0.7])
     use_live = c1.toggle(S["toggle_live"], value=live_ok, disabled=not live_ok, help=S["toggle_help"])
     nxt = ALL[len(recorded_done)] if len(recorded_done) < len(ALL) else None
     if c2.button(S["next_event"], disabled=nxt is None, width="stretch"):
@@ -106,6 +107,13 @@ with tab_launch:
             process(e, False)           # fast-forward in rules mode
         with st.spinner(S["spinner_watch"].format(event="EV-019")):
             process(ALL[stop], use_live)  # the key moment live when possible
+        st.rerun()
+    if c6.button(S["fast_forward_today"], width="stretch", disabled=len(recorded_done) >= len(ALL), help=S["fast_forward_today_help"]):
+        with st.spinner(S["spinner_today"]):
+            for e in ALL[len(recorded_done):]:
+                process(e, False, live_rows=use_live, selective=True)   # recorded story in rules mode; live rows selectively live
+            for r in W.drain(store, ALL[-1]["ts"], use_live, selective=True):
+                st.session_state.log.append(r)
         st.rerun()
     if c4.button(S["live_due"].format(n=len(due_now)), width="stretch", disabled=not due_now, help=S["live_due_help"]):
         with st.spinner(S["spinner_live"].format(n=len(due_now))):

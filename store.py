@@ -109,10 +109,11 @@ class MemStore:
 class PgStore(MemStore):
     kind = "pg"
 
-    def __init__(self, url):
+    def __init__(self, url, bootstrap=True):
         self.url = url
         self._connect()
-        self._bootstrap()
+        if bootstrap:
+            self._bootstrap()
 
     def _connect(self):
         import psycopg
@@ -248,11 +249,16 @@ class PgStore(MemStore):
                           FROM supplier_reliability ORDER BY late_rate DESC, real_lead_time_days DESC""")
 
 
-def get_store():
+def get_store(bootstrap=None):
+    """bootstrap: whether this process may create the schema and (re)load data/ into the database.
+    Only the main app should; a secondary consumer (an API, a worker) sets LAUNCHPILOT_BOOTSTRAP=0 or passes False,
+    otherwise two apps built from different data/ flip the shared database between dataset versions on every start."""
     url = os.environ.get("DATABASE_URL", "").strip()
+    if bootstrap is None:
+        bootstrap = os.environ.get("LAUNCHPILOT_BOOTSTRAP", "1") not in ("0", "false", "no")
     if url:
         try:
-            return PgStore(url), None
+            return PgStore(url, bootstrap=bootstrap), None
         except Exception as ex:  # on ne bloque jamais la démo
             return MemStore(), f"PostgreSQL connection failed, running in memory: {ex}"
     return MemStore(), None
