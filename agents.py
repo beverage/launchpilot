@@ -9,7 +9,7 @@ Each agent exists in two versions:
 - "rules" : deterministic, fast and free (fast-forward, or a demo without a key).
 The UI always shows which version produced each result. Supplier messages may arrive in French; the agents answer in English.
 """
-import json, os, time
+import json, os, re, time
 from datetime import date, timedelta
 import tools as T
 
@@ -112,15 +112,18 @@ def _existing(store, cid):
 SEV_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
-def _should_alert(store, cid, week, risk_type="stockout_component", trigger=None, severity=None):
+def _should_alert(store, cid, week, risk_type="stockout_component", trigger=None, severity=None, units=None):
     """Each risk type dedups only against itself: a stockout alert moves only to an earlier week; a supplier-continuity
-    alert is raised once per notice; a capacity alert is raised again only when it gets earlier or more severe."""
+    alert is raised once per notice; a capacity alert is raised again when it gets earlier, more severe, or at least
+    half as large again (units read back from the last alert's "N units short")."""
     ex = [a for a in _existing(store, cid) if (a.get("risk_type") or "stockout_component") == risk_type]
     if not ex:
         return True
     if risk_type == "capacity":
         last = ex[0]
-        return (SEV_RANK.get(severity, 0) > SEV_RANK.get(last["severity"], 0)
+        m = re.search(r"([\d ]+) units short", last.get("explanation") or "")
+        grew = bool(units and m and units >= 1.5 * int(m.group(1).replace(" ", "")))
+        return (SEV_RANK.get(severity, 0) > SEV_RANK.get(last["severity"], 0) or grew
                 or bool(week and last["predicted_stockout_week"] and week < last["predicted_stockout_week"]))
     if risk_type != "stockout_component":
         return not any(a.get("trigger_event_id") == trigger for a in ex)
@@ -219,7 +222,7 @@ def watch_rules(store, event, events_seen):
     if event["event_type"] in ("capacity_drop", "sellout_spike"):
         for c in T.capacity_check(events_seen):
             wk, sev = c["first_unserved_week"], c["suggested_severity"]
-            if not _should_alert(store, c["product_id"], wk, "capacity", event["event_id"], sev):
+            if not _should_alert(store, c["product_id"], wk, "capacity", event["event_id"], sev, c["units_unserved"]):
                 continue
             drops = ", ".join(e for e in c["evidence"] if e.startswith("events:"))
             n = lambda x: f"{x:,}".replace(",", " ")
