@@ -96,6 +96,10 @@ def _summary(e):
         if t == "supplier_insolvency":   # the judgment type only: the full text names people (liquidators, directors)
             where = ", ".join(x for x in (p.get("activity_label"), p.get("city")) if x)
             return f"{p.get('company_name')}{f' ({where})' if where else ''}: {str(p.get('procedure', '')).split(':')[0]}"
+        if t == "channel_orders":       # same wording as app.py
+            c = T.orders_to_demand_change(p)
+            return S["feed_orders"].format(product=T.comp_label(p["product_id"]), expected=c["expected_units"],
+                                           forecast=c["forecast_units"], n=len(c["weeks_affected"]), ratio=c["observed_vs_forecast"])
         if t == "sellout_weekly":
             return f"{T.PROD.get(p.get('product_id'), {}).get('name', p.get('product_id'))}, {p.get('channel')}: {p.get('units')} units against {p.get('forecast_units')} forecast"
         if t == "holiday_closure":
@@ -159,6 +163,7 @@ def _latest_alerts():
 def _alert(a):
     scen = store.list_scenarios(a["alert_id"])
     return {"alert_id": a["alert_id"], "component_id": a["item_id"], "component_name": T.comp_label(a["item_id"]),
+            "risk_type": a.get("risk_type") or "stockout_component",   # "capacity" alerts are about a product
             "severity": a["severity"], "predicted_stockout_week": a["predicted_stockout_week"],
             "confidence": a.get("confidence"), "explanation": a["explanation"], "evidence": a.get("evidence", []),
             "trigger_event_id": a.get("trigger_event_id"), "created_at": a.get("created_at"),
