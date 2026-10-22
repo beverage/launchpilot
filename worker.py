@@ -57,14 +57,29 @@ def process_live(store, row, live):
                 label = S["demo_mapping_label"].format(company=pl.get("company_name"), siren=T.siren_pretty(pl.get("siren")), procedure=pl.get("procedure"),
                                                        judgment_date=pl.get("judgment_date"), court=pl.get("court"), supplier=hit["name"]) if hit["siren"] else ""
                 proj = {r["component_id"]: r for r in T.run_projection(seen)}
+                exposure = {x["component_id"]: x for x in T.supplier_exposure(seen, hit["supplier_id"])}
                 created = []
                 for cid in T.components_of(hit["supplier_id"]):
                     if any(a["trigger_event_id"] == row["event_id"] and a["item_id"] == cid for a in store.list_alerts()):
                         continue
+                    x = exposure.get(cid)
+                    text = S["status_alert"].format(supplier=hit["name"], procedure=pl.get("procedure"), judgment_date=pl.get("judgment_date"), component=T.comp_label(cid))
+                    week, severity, evidence = proj.get(cid, {}).get("stockout_week_launchpilot"), "medium", []
+                    if x:
+                        fmt = lambda n: f"{n:,}".replace(",", " ")
+                        lost = f"{x['lost_revenue_eur_if_missing'] / 1e6:.2f} M€" if x["lost_revenue_eur_if_missing"] >= 1e6 else f"{x['lost_revenue_eur_if_missing'] / 1e3:,.0f} k€".replace(",", " ")
+                        orders = ", ".join(f"{o['po_id']} {fmt(o['qty'])} units promised {o['promised_date']}" for o in x["open_orders"])
+                        text += " " + (S["exposure_text"].format(open_qty=fmt(x["open_qty"]), total=fmt(x["open_qty"] + x["received_since_snapshot_qty"]), component=x["name"], supplier=hit["name"], orders=orders,
+                                                              week_without=x["stockout_week_if_orders_never_arrive"], week_as_is=x["stockout_week_as_is"], extra=fmt(x["extra_units_short"]), lost=lost)
+                                       if x["stockout_week_as_is"] and x["stockout_week_if_orders_never_arrive"] else
+                                       S["exposure_no_stockout"].format(component=x["name"], week_without=x["stockout_week_if_orders_never_arrive"], extra=fmt(x["extra_units_short"]), lost=lost))
+                        if not x["second_source"]:
+                            text += " " + S["exposure_no_second_source"]
+                        week, severity, evidence = x["stockout_week_if_orders_never_arrive"] or week, x["severity_if_missing"] or "medium", x["evidence"]
                     created.append(store.add_alert({"source": A.SOURCE_RULES, "trigger_event_id": row["event_id"], "item_id": cid, "risk_type": "supplier_continuity",
-                                                    "predicted_stockout_week": proj.get(cid, {}).get("stockout_week_launchpilot"), "severity": "medium", "confidence": None,
-                                                    "explanation": (S["status_alert"].format(supplier=hit["name"], procedure=pl.get("procedure"), judgment_date=pl.get("judgment_date"), component=T.comp_label(cid)) + " " + label).strip(),
-                                                    "evidence": [f"events:{row['event_id']}", f"suppliers:{hit['supplier_id']}"] + ([pl["notice_url"]] if pl.get("notice_url") else [])}))
+                                                    "predicted_stockout_week": week, "severity": severity, "confidence": None,
+                                                    "explanation": (text + " " + label).strip(),
+                                                    "evidence": [f"events:{row['event_id']}", f"suppliers:{hit['supplier_id']}"] + evidence + ([pl["notice_url"]] if pl.get("notice_url") else [])}))
                 run = _note(store, row, f"EXPOSURE: {pl.get('company_name')} ({pl.get('procedure')}) matches {hit['name']}; {len(created)} status alert(s). {label}")
                 run["alerts_created"] = created
             else:
