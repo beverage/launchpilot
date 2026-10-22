@@ -278,6 +278,32 @@ with tab_proof:
         st.info(S["proof_missing"])
     st.caption(S["proof_limits"])
 
+    # ---- cost and latency per processed event (C3), read live from the database ----
+    st.subheader(S["cost_title"])
+    stats = store.run_stats()
+    rows = stats["rows"]
+    usd = lambda x: "—" if x is None else (f"{x*100:.1f} ¢" if x < 0.1 else f"{x:.2f} $")
+    live_rows = [r for r in rows if r["live"]]
+    live_runs = sum(r["runs"] for r in live_rows)
+    total_cost = sum((T.cost_usd(r["sum_in"], r["sum_out"], A.MODEL) or 0) for r in live_rows)
+    by_agent = {r["agent"]: r for r in live_rows}
+    m1, m2, m3 = st.columns(3)
+    for col, key, label in ((m1, "watch", S["cost_live_watch"]), (m2, "arbitration", S["cost_live_arb"])):
+        r = by_agent.get(key)
+        col.metric(label, S["cost_value"].format(sec=r["p50_ms"] / 1000, usd=usd(T.cost_usd(r["avg_in"], r["avg_out"], A.MODEL))) if r else S["cost_none"])
+    m3.metric(S["cost_per_event"], usd(total_cost / stats["events_analysed"]) if stats["events_analysed"] else "—")
+    price = T.PRICE_PER_MTOK.get(A.MODEL, (None, None))
+    st.caption(S["cost_caption"].format(events=stats["events_analysed"], runs=sum(r["runs"] for r in rows), live=live_runs,
+                                        model=A.MODEL, p_in=price[0], p_out=price[1]))
+    if rows:
+        table = [{S["cost_col_agent"]: S.get(f"cost_agent_{r['agent']}", r["agent"]),
+                  S["cost_col_mode"]: S["cost_mode_live"] if r["live"] else S["cost_mode_rules"], S["cost_col_runs"]: r["runs"],
+                  S["cost_col_p50"]: f"{r['p50_ms'] / 1000:.1f} s", S["cost_col_max"]: f"{r['max_ms'] / 1000:.1f} s",
+                  S["cost_col_tokens"]: f"{r['avg_in']:,.0f} + {r['avg_out']:,.0f}".replace(",", " ") if r["live"] else "0",
+                  S["cost_col_cost"]: usd(T.cost_usd(r["avg_in"], r["avg_out"], A.MODEL)) if r["live"] else "0",
+                  S["cost_col_total"]: usd(T.cost_usd(r["sum_in"], r["sum_out"], A.MODEL)) if r["live"] else "0"} for r in rows]
+        st.dataframe(pd.DataFrame(table), hide_index=True, width="stretch")
+
 # =================== TRACES TAB ===================
 with tab_trace:
     st.subheader(S["traces_title"])
