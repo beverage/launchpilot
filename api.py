@@ -56,6 +56,13 @@ def _live(requested):
     return A.claude_available() if requested is None else bool(requested) and A.claude_available()
 
 
+# Labels for the stream event types strings.py doesn't cover yet; strings.py wins when it has one
+STREAM_KINDS = {"supplier_insolvency": "🏛️ Supplier insolvency (BODACC)", "po_delivered": "📦 Delivery",
+                "supplier_email": "✉️ Supplier email", "holiday_closure": "📅 Holiday closure",
+                "sellout_weekly": "📊 Weekly sell-out"}
+REAL_DATA_PREFIXES = ("BOD-", "HOL-")   # public data; MAIL-, DLV- and SELL- are synthetic, streamed live
+
+
 def _summary(e):
     p, t = e.get("payload", {}), e["event_type"]
     sup = lambda k: T.SUP.get(p.get(k), {}).get("name", p.get(k))
@@ -69,11 +76,16 @@ def _summary(e):
         if t == "po_confirmed":
             return S["feed_confirmed"].format(po=p["po_id"], qty=p["confirmed_qty"])
         if t == "po_delivered":
-            return f"{p['po_id']} delivered: {p['delivered_qty']} units on {p['actual_date']}"
+            partial = str(p.get("partial")).lower() == "true"
+            return (f"{p['po_id']} delivered: {p['quantity_delivered']} of {p['quantity_ordered']} units on {p['delivered_at']}"
+                    + (" (partial)" if partial else ""))
         if t == "supplier_email":
-            return f"Email from {p.get('from')}: {p.get('subject')}"
-        if t == "supplier_insolvency":
-            return f"{p.get('company_name')}: {p.get('procedure')}"
+            return f"Email from {p.get('from_name')} ({sup('supplier_id')}): {p.get('subject')}"
+        if t == "supplier_insolvency":   # the judgment type only: the full text names people (liquidators, directors)
+            where = ", ".join(x for x in (p.get("activity_label"), p.get("city")) if x)
+            return f"{p.get('company_name')}{f' ({where})' if where else ''}: {str(p.get('procedure', '')).split(':')[0]}"
+        if t == "sellout_weekly":
+            return f"{T.PROD.get(p.get('product_id'), {}).get('name', p.get('product_id'))}, {p.get('channel')}: {p.get('units')} units against {p.get('forecast_units')} forecast"
         if t == "holiday_closure":
             return f"{p.get('name')} ({p.get('country')}, {p.get('date')})"
         if t == "noise":
@@ -85,8 +97,10 @@ def _summary(e):
 
 def _event(e):
     return {"event_id": e["event_id"], "ts": e["ts"], "event_type": e["event_type"],
-            "kind_label": S["event_kind"].get(e["event_type"], e["event_type"]), "summary": _summary(e),
-            "payload": e.get("payload", {}), "origin": "recorded" if e["event_id"].startswith("EV-") else "live"}
+            "kind_label": S["event_kind"].get(e["event_type"]) or STREAM_KINDS.get(e["event_type"], e["event_type"]),
+            "summary": _summary(e),
+            "payload": e.get("payload", {}), "origin": "recorded" if e["event_id"].startswith("EV-") else "live",
+            "real_data": e["event_id"].startswith(REAL_DATA_PREFIXES)}
 
 
 def _run(r):
