@@ -10,7 +10,7 @@ Each agent exists in two versions:
 The UI always shows which version produced each result. Supplier messages may arrive in French; the agents answer in English.
 """
 import json, os, time
-from datetime import date
+from datetime import date, timedelta
 import tools as T
 
 MODEL = os.environ.get("CLAUDE_MODEL") or "claude-sonnet-5-5"
@@ -61,8 +61,9 @@ def _loop(system, user, tool_specs, handlers, store, agent_name, max_turns=10):
 
 WATCH_SYSTEM = """You are LaunchPilot's watch agent, the supply copilot of a small cosmetics brand (Maison Aurore).
 The Christmas gift set launches in the week of {launch}. A new event has just arrived in the stream. Supplier messages may be in French; you always answer in English.
+Event types. Structured: supplier_delay, sellout_spike, capacity_drop, po_confirmed, noise. Live: supplier_email (raw text from a supplier, usually French: find the purchase order and what the supplier states, then call record_supplier_update with kind "delay" (a new promised date or a delay in days) or "confirmation" (a quantity shipped or confirmed; a quantity below the order is a partial delivery); if the email changes nothing, it is noise), po_delivered (the goods receipt is already applied to the supplier memory; run the projection to see what moved and say how the supplier's lead time used changed), supplier_insolvency (a real public notice: call get_supplier_master and compare company name and SIREN; with no match call no_new_risk with the reason "no exposure: <company> is not one of our suppliers"; with a match create a medium alert for its components), holiday_closure (noise unless it names one of our suppliers).
 Steps:
-1. Classify the event: potential impact on component supply, or noise. If it is noise, call mark_noise and stop.
+1. Classify the event: potential impact on component supply, or noise. If it is noise, call mark_noise and stop. For a supplier_email, extract first (record_supplier_update), then continue.
 2. Call run_projection. A supplier's announced lead time is NEVER taken at face value: LaunchPilot draws each lead time from the supplier's delivered history and returns a probability of stockout (median week, probability by launch + 1 week, probability before year end). Compare with the "without memory" view: an attentive planner who reads the same messages but believes the announced lead times. Explain the gap with the supplier memory.
 3. For every component whose suggested_severity is high or medium and whose stockout is new, or earlier than an alert already open, call create_alert with the median week. Severity = suggested_severity (high: at least a 50% probability of a stockout no later than one week after launch; medium: a stockout is likely before year end). Confidence = the confidence field returned (a probability), never an invented number.
 4. The explanation is at most two sentences, in English, and cites the evidence in table:id form found in the tool outputs.
@@ -83,6 +84,14 @@ WATCH_TOOLS = [
          "severity": {"type": "string", "enum": ["high", "medium", "low"]}, "confidence": {"type": "number"},
          "explanation": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}}},
          "required": ["component_id", "stockout_week", "severity", "confidence", "explanation", "evidence"]}},
+    {"name": "record_supplier_update", "description": "Records what a supplier email states about a purchase order, as a structured event the projection understands. kind=delay needs new_promised_date (YYYY-MM-DD) or announced_delay_days; kind=confirmation needs confirmed_qty (units shipped or confirmed) and optionally confirmed_date.",
+     "input_schema": {"type": "object", "properties": {
+         "po_id": {"type": "string"}, "kind": {"type": "string", "enum": ["delay", "confirmation"]},
+         "new_promised_date": {"type": "string"}, "announced_delay_days": {"type": "integer"},
+         "confirmed_qty": {"type": "integer"}, "confirmed_date": {"type": "string"}},
+         "required": ["po_id", "kind"]}},
+    {"name": "get_supplier_master", "description": "Our suppliers (id, name, category, SIREN when known), to check exposure to a public notice.",
+     "input_schema": {"type": "object", "properties": {}}},
     {"name": "mark_noise", "description": "The event has no supply impact.",
      "input_schema": {"type": "object", "properties": {"reason": {"type": "string"}}, "required": ["reason"]}},
     {"name": "no_new_risk", "description": "The event was analysed; no new alert is needed.",
@@ -116,17 +125,50 @@ def watch_live(store, event, events_seen):
         created.append(aid)
         return {"status": "created", "alert_id": aid}
 
+    def record_supplier_update(po_id, kind, new_promised_date=None, announced_delay_days=None, confirmed_qty=None, confirmed_date=None):
+        po = next((x for x in T.DB["purchase_orders"] if x["po_id"] == po_id), None)
+        if not po:
+            return {"error": f"unknown purchase order {po_id}"}
+        if kind == "delay":
+            if not new_promised_date and announced_delay_days is None:
+                return {"error": "give new_promised_date or announced_delay_days"}
+            base = T._d(po["promised_date"])
+            if announced_delay_days is None:
+                announced_delay_days = (T._d(new_promised_date) - base).days
+            if not new_promised_date:
+                new_promised_date = (base + timedelta(days=int(announced_delay_days))).isoformat()
+            etype, payload = "supplier_delay", {"po_id": po_id, "supplier_id": po["supplier_id"], "component_id": po["component_id"],
+                                                "new_promised_date": new_promised_date, "announced_delay_days": int(announced_delay_days)}
+        elif kind == "confirmation":
+            if confirmed_qty is None:
+                return {"error": "give confirmed_qty"}
+            etype, payload = "po_confirmed", {"po_id": po_id, "component_id": po["component_id"],
+                                              "confirmed_date": confirmed_date or po["promised_date"], "confirmed_qty": int(confirmed_qty)}
+        else:
+            return {"error": "kind must be delay or confirmation"}
+        mirrors = event["payload"].get("mirrors")
+        duplicate = bool(mirrors and any(e["event_id"] == mirrors for e in store.list_events()))   # structured twin already applied
+        payload.update({"derived_from": event["event_id"]}, **({"mirrors": mirrors} if mirrors else {}), **({"superseded": True} if duplicate else {}))
+        derived = {"event_id": f"{event['event_id']}/derived", "ts": event["ts"], "event_type": etype, "payload": payload}
+        store.add_event(derived, processed=True)
+        if not duplicate:
+            events_seen.append(derived)          # the projection in this run sees it
+        return {"status": "recorded", "derived_event": derived, "already_known_from_structured_feed": duplicate}
+
     handlers = {
         "run_projection": lambda component_ids=None: T.run_projection(events_seen, component_ids),
         "get_supplier_memory": lambda supplier_id=None: T.get_supplier_memory(supplier_id),
         "get_open_pos": lambda component_id: T.get_open_pos(component_id),
+        "record_supplier_update": record_supplier_update,
+        "get_supplier_master": lambda: T.get_supplier_master(),
         "create_alert": create_alert,
         "mark_noise": lambda reason: {"status": "ok"},
         "no_new_risk": lambda reason: {"status": "ok"},
     }
     existing = [{"component": a["item_id"], "stockout_week": a["predicted_stockout_week"], "severity": a["severity"]}
                 for a in store.list_alerts()]
-    user = (f"Simulated date: {event['ts'][:10]}.\nEvent: {json.dumps(event, ensure_ascii=False)}\n"
+    shown = dict(event, payload={k: v for k, v in event["payload"].items() if k != "mirrors"})   # the agent never sees the hint
+    user = (f"Simulated date: {event['ts'][:10]}.\nEvent: {json.dumps(shown, ensure_ascii=False)}\n"
             f"Alerts already open: {json.dumps(existing, ensure_ascii=False)}")
     run = _loop(WATCH_SYSTEM.format(launch=T.LAUNCH_WEEK), user, WATCH_TOOLS, handlers, store, "watch")
     run["alerts_created"] = created

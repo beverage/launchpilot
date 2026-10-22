@@ -44,8 +44,8 @@
         "without_memory": "2026-12-21",
         "launchpilot": "2026-11-09",
         "lead_days_without_memory": null,
-        "lead_days_launchpilot": 39,
-        "p_by_launch_plus_1wk": 0.82,
+        "lead_days_launchpilot": 46,
+        "p_by_launch_plus_1wk": 0.85,
         "p_before_end_of_year": 1.0
       },
       "CMP-ETU-01": {
@@ -72,7 +72,7 @@
         "launchpilot": "2026-12-14",
         "lead_days_without_memory": 91,
         "lead_days_launchpilot": 91,
-        "p_by_launch_plus_1wk": 0.1,
+        "p_by_launch_plus_1wk": 0.07,
         "p_before_end_of_year": 1.0
       }
     }

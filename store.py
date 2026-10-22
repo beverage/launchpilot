@@ -36,20 +36,39 @@ class MemStore:
         self.reset()
 
     def reset(self):
-        self.events, self.alerts, self.scenarios, self.decisions, self.runs = [], [], [], [], []
+        self.events, self.alerts, self.scenarios, self.decisions, self.runs, self.deliveries = [], [], [], [], [], {}
 
-    # événements
-    def add_event(self, e):
+    # events
+    def add_event(self, e, processed=False):
         if not any(x["event_id"] == e["event_id"] for x in self.events):
-            self.events.append(dict(e, processed=False))
+            self.events.append(dict(e, processed=processed))
 
     def list_events(self):
         return list(self.events)
+
+    def list_unprocessed(self, before_ts):
+        """Live rows (ids not starting with EV-) due at the demo clock, oldest first."""
+        return sorted([e for e in self.events if not e["processed"] and not e["event_id"].startswith("EV-") and e["ts"] <= before_ts],
+                      key=lambda e: (e["ts"], e["event_id"]))
 
     def mark_processed(self, event_id):
         for e in self.events:
             if e["event_id"] == event_id:
                 e["processed"] = True
+
+    def superseded_by(self, event_id):
+        """The derived row (from a supplier email) that already carries this recorded event's information, if any."""
+        return next((e["event_id"] for e in self.events if e["event_id"].endswith("/derived") and e["payload"].get("mirrors") == event_id), None)
+
+    # deliveries applied to purchase orders
+    def mark_delivered(self, po_id, delivered_at, qty):
+        self.deliveries[po_id] = (delivered_at, qty)
+
+    def delivered_updates(self):
+        return [{"po_id": k, "actual_date": v[0], "delivered_qty": v[1]} for k, v in self.deliveries.items()]
+
+    def revert_deliveries(self):
+        self.deliveries = {}
 
     # alertes
     def add_alert(self, a):
@@ -134,19 +153,40 @@ class PgStore(MemStore):
     def reset(self):
         """Clears the recorded scenario (EV- ids) and the agents' outputs. Live events from the pollers survive and are re-queued."""
         self._q("TRUNCATE decisions, scenarios, alerts, agent_runs RESTART IDENTITY CASCADE", fetch=False)
-        self._q("DELETE FROM events WHERE event_id LIKE 'EV-%'", fetch=False)
+        self._q("DELETE FROM events WHERE event_id LIKE 'EV-%' OR event_id LIKE '%/derived'", fetch=False)
         self._q("UPDATE events SET processed = FALSE WHERE event_id NOT LIKE 'EV-%'", fetch=False)
+        self.revert_deliveries()
 
-    def add_event(self, e):
-        self._q("INSERT INTO events (event_id, ts, event_type, payload) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                (e["event_id"], e["ts"], e["event_type"], json.dumps(e["payload"], ensure_ascii=False)), fetch=False)
+    def add_event(self, e, processed=False):
+        self._q("INSERT INTO events (event_id, ts, event_type, payload, processed) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                (e["event_id"], e["ts"], e["event_type"], json.dumps(e["payload"], ensure_ascii=False), processed), fetch=False)
 
     def list_events(self):
         rows = self._q("SELECT event_id, ts, event_type, payload, processed FROM events ORDER BY ts, event_id")
         return [dict(r, ts=r["ts"].isoformat()) for r in rows]
 
+    def list_unprocessed(self, before_ts):
+        rows = self._q("""SELECT event_id, ts, event_type, payload, processed FROM events
+                          WHERE NOT processed AND event_id NOT LIKE 'EV-%%' AND ts <= %s ORDER BY ts, event_id""", (before_ts,))
+        return [dict(r, ts=r["ts"].isoformat()) for r in rows]
+
     def mark_processed(self, event_id):
         self._q("UPDATE events SET processed = TRUE WHERE event_id = %s", (event_id,), fetch=False)
+
+    def superseded_by(self, event_id):
+        r = self._q("SELECT event_id FROM events WHERE event_id LIKE '%%/derived' AND payload->>'mirrors' = %s LIMIT 1", (event_id,))
+        return r[0]["event_id"] if r else None
+
+    def mark_delivered(self, po_id, delivered_at, qty):
+        self._q("UPDATE purchase_orders SET status = 'delivered', actual_date = %s, delivered_qty = %s WHERE po_id = %s",
+                (delivered_at, qty, po_id), fetch=False)
+
+    def delivered_updates(self):
+        rows = self._q("SELECT po_id, actual_date, delivered_qty FROM purchase_orders WHERE status = 'delivered' AND delivered_qty IS NOT NULL")
+        return [dict(r, actual_date=r["actual_date"].isoformat()) for r in rows]
+
+    def revert_deliveries(self):
+        self._q("UPDATE purchase_orders SET status = 'open', actual_date = NULL, delivered_qty = NULL WHERE delivered_qty IS NOT NULL", fetch=False)
 
     def add_alert(self, a):
         r = self._q("""INSERT INTO alerts (source, trigger_event_id, item_id, risk_type, predicted_stockout_week,
@@ -214,5 +254,5 @@ def get_store():
         try:
             return PgStore(url), None
         except Exception as ex:  # on ne bloque jamais la démo
-            return MemStore(), f"Connexion PostgreSQL impossible : {ex}"
+            return MemStore(), f"PostgreSQL connection failed, running in memory: {ex}"
     return MemStore(), None

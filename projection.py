@@ -62,8 +62,16 @@ def _frame(db, window_end=None):
 def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_scale=None, weeks=None):
     """État des commandes ouvertes et des multiplicateurs de demande après lecture des événements.
     lead_time(supplier_id, announced) donne le délai utilisé pour une commande ouverte (vue learned)."""
+    sim_today = _d(db["gt"]["sim_today"])
     open_pos = {p["po_id"]: dict(p) for p in db["purchase_orders"] if p["status"] == "open"}
+    # Orders delivered since the stock snapshot are known arrivals: fixed date and quantity, no uncertainty left.
+    for p in db["purchase_orders"]:
+        if p["status"] == "delivered" and p.get("actual_date") and _d(p["actual_date"]) >= sim_today:
+            open_pos[p["po_id"]] = dict(p, arrival=_d(p["actual_date"]), qty_eff=int(p.get("delivered_qty") or p["qty"]),
+                                        evidence=[f"purchase_orders:{p['po_id']} (delivered {p['actual_date']})"], fixed=True)
     for p in open_pos.values():
+        if p.get("fixed"):
+            continue
         p["arrival"] = _d(p["promised_date"])
         p["qty_eff"] = int(p["qty"])
         p["evidence"] = [f"purchase_orders:{p['po_id']}"]
@@ -81,7 +89,7 @@ def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_s
             demand_mult[(pid, w)] = f
     for e in events_seen:
         t, pl = e["event_type"], e["payload"]
-        if t == "supplier_delay" and pl["po_id"] in open_pos:
+        if t == "supplier_delay" and pl["po_id"] in open_pos and not open_pos[pl["po_id"]].get("fixed"):
             p = open_pos[pl["po_id"]]
             if mode == "learned":
                 p["arrival"] += timedelta(days=round(pl["announced_delay_days"] * mem[p["supplier_id"]]["ratio"]))
@@ -92,7 +100,7 @@ def _open_orders(db, events_seen, mode, mem, lead_time, extra_pos=None, demand_s
             for w in pl["weeks_affected"]:
                 k = (pl["product_id"], _d(w))
                 demand_mult[k] = demand_mult.get(k, 1.0) * pl["observed_vs_forecast"]
-        elif t == "po_confirmed" and pl["po_id"] in open_pos and mode != "naive":
+        elif t == "po_confirmed" and pl["po_id"] in open_pos and mode != "naive" and not open_pos[pl["po_id"]].get("fixed"):
             p = open_pos[pl["po_id"]]
             p["qty_eff"] = int(pl["confirmed_qty"])
             if p["qty_eff"] < int(p["qty"]):
@@ -143,10 +151,11 @@ def project_prob(db, events_seen, n=200, seed=0, window_end=None, extra_pos=None
     median_week (None si la rupture est improbable), p10 / p50 / p90 (bande de stock), min_stock_p50."""
     weeks, stock, bom, fc = _frame(db, window_end)
     mem = supplier_memory(db)
-    rng = random.Random(seed)
+    # One random stream per supplier, so a new delivery at one supplier never reshuffles the draws of the others.
+    rngs = {sid: random.Random(f"{seed}:{sid}") for sid in mem}
     runs = {cid: [] for cid in stock}
     for _ in range(n):
-        draw = {sid: (rng.choice(m["samples"]) if m["samples"] else m["announced"]) for sid, m in mem.items()}
+        draw = {sid: (rngs[sid].choice(m["samples"]) if m["samples"] else m["announced"]) for sid, m in mem.items()}
         open_pos, demand_mult = _open_orders(db, events_seen, "learned", mem, lambda sid, ann: draw[sid],
                                              extra_pos, demand_scale, weeks)
         for cid, r in _run(weeks, stock, bom, fc, open_pos, demand_mult).items():

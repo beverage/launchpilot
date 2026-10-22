@@ -49,7 +49,11 @@ Rules:
 - **`processed`** is written by the consumer only. Producers insert `FALSE`.
 - **The demo clock** is the latest `ts` among processed events, recorded or live. Unprocessed rows never move it. The consumer processes rows in `ts` order and only those due at the current clock, so a live row dated today is analysed when the replay reaches today, as the last beat of the story. Until the consumer worker exists, the app ignores rows whose id does not start with `EV-` for both the clock and the alerts, so producers may write to the table at any time without disturbing the recorded demo.
 - **Payload** is a JSON object with the keys below. Anything the agent needs to cite must be in the payload or in a row it can name (`table:id`).
-- Reset in the app deletes only `EV-%` events and the agent outputs; live rows survive.
+- Reset in the app deletes only `EV-%` events, the derived rows and the agent outputs; live rows survive and are re-queued; deliveries applied to purchase orders are reverted.
+- **Emails that mirror a recorded event** carry `payload.mirrors` (the `EV-` id). The agent never sees that key. When the live agent extracts the email it writes a derived structured row (`MAIL-00x/derived`, type `supplier_delay` or `po_confirmed`, `payload.derived_from` and `mirrors`); the recorded twin is then stored as `superseded` and skipped, so the news is applied once. If the twin was already applied, the derived row is the one marked `superseded`.
+- **Goods receipts** (`po_delivered`) mark the order delivered in `purchase_orders` (`actual_date`, `delivered_qty`), which feeds the `supplier_reliability` view and makes the order a fixed arrival in the projection.
+- **The consumer** (`worker.py`) runs inside the app: before each recorded event, and on the "Analyse live events due now" button, it drains unprocessed live rows dated on or before the demo clock, oldest first. Rules mode leaves emails for the live agent, still applies deliveries, and does a name/SIREN exposure check on insolvency notices.
+- **Corpora:** `python3 generate_corpora.py` writes `data/emails.jsonl` (5 French supplier emails, 4 mirroring EV-001, EV-002, EV-005 and EV-019, 1 noise) and `data/deliveries.jsonl` (the 6 open orders that truly arrive before 22 October, PO-0063 partial), each line already in the Kafka message shape.
 
 Proposed new event types:
 
