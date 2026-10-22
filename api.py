@@ -16,8 +16,8 @@ from pydantic import BaseModel
 
 import tools as T
 import agents as A
-from projection import project
 from store import PgStore, get_store
+from strings import EN as S
 
 store, store_err = get_store()
 ALL = T.all_events()
@@ -48,6 +48,10 @@ def _mode(m):
     return "live" if m == "live" else "rules"
 
 
+def _store_kind():
+    return "postgres" if isinstance(store, PgStore) else "memory"
+
+
 def _live(requested):
     return A.claude_available() if requested is None else bool(requested) and A.claude_available()
 
@@ -56,14 +60,14 @@ def _summary(e):
     p, t = e.get("payload", {}), e["event_type"]
     sup = lambda k: T.SUP.get(p.get(k), {}).get("name", p.get(k))
     try:
-        if t == "supplier_delay":
-            return f"{sup('supplier_id')} pushes {p['po_id']} back {p['announced_delay_days']} days"
+        if t == "supplier_delay":       # same wording as app.py, from strings.py
+            return S["feed_delay"].format(supplier=sup("supplier_id"), po=p["po_id"], days=p["announced_delay_days"])
         if t == "sellout_spike":
-            return f"{T.PROD[p['product_id']]['name']}: sales x{p['observed_vs_forecast']} vs forecast"
+            return S["feed_spike"].format(product=T.PROD[p["product_id"]]["name"], factor=p["observed_vs_forecast"])
         if t == "capacity_drop":
-            return f"{p['subcontractor_id']}: capacity -{int(float(p['capacity_drop_rate']) * 100)}%"
+            return S["feed_capacity"].format(plant=p["subcontractor_id"], pct=int(float(p["capacity_drop_rate"]) * 100))
         if t == "po_confirmed":
-            return f"{p['po_id']} confirmed: {p['confirmed_qty']} units"
+            return S["feed_confirmed"].format(po=p["po_id"], qty=p["confirmed_qty"])
         if t == "po_delivered":
             return f"{p['po_id']} delivered: {p['delivered_qty']} units on {p['actual_date']}"
         if t == "supplier_email":
@@ -80,7 +84,8 @@ def _summary(e):
 
 
 def _event(e):
-    return {"event_id": e["event_id"], "ts": e["ts"], "event_type": e["event_type"], "summary": _summary(e),
+    return {"event_id": e["event_id"], "ts": e["ts"], "event_type": e["event_type"],
+            "kind_label": S["event_kind"].get(e["event_type"], e["event_type"]), "summary": _summary(e),
             "payload": e.get("payload", {}), "origin": "recorded" if e["event_id"].startswith("EV-") else "live"}
 
 
@@ -136,18 +141,19 @@ def _state():
         "launch_product": {"product_id": T.LAUNCH_PRODUCT, "name": T.PROD[T.LAUNCH_PRODUCT]["name"]},
         "events_processed": len(seen), "events_total": len(ALL),
         "next_event": _event(nxt) if nxt else None,
-        "data": {"store": "postgres" if isinstance(store, PgStore) else "memory", "label": store.kind, "error": store_err,
-                 "dataset": "synthetic, recorded scenario"},
+        "data": {"store": _store_kind(), "label": S["store_pg"] if _store_kind() == "postgres" else S["store_memory"],
+                 "error": store_err, "dataset": S["dataset_value"]},
         "agents": {"live_available": A.claude_available(), "model": A.MODEL},
         "kpis": {"critical_alerts": sum(1 for a in _latest_alerts() if a["severity"] == "high"),
                  "revenue_at_risk_eur": risk},
         "components": [{"component_id": r["component_id"], "name": r["name"], "supplier_id": r["supplier_id"],
                         "supplier_name": T.SUP[r["supplier_id"]]["name"],
                         "stockout_week_launchpilot": r["stockout_week_launchpilot"],
-                        "stockout_week_baseline": r["stockout_week_naive_excel"],
-                        "min_projected_stock": r["min_projected_stock"],
-                        "severity": r["suggested_severity"] if r["stockout_week_launchpilot"] else "covered",
-                        "evidence": r["evidence"]} for r in proj],
+                        "stockout_week_without_memory": r["stockout_week_without_memory"],
+                        "p_stockout_by_launch_plus_1wk": r["p_stockout_by_launch_plus_1wk"],
+                        "p_stockout_before_end_of_year": r["p_stockout_before_end_of_year"],
+                        "confidence": r["confidence"], "min_projected_stock_p50": r["min_projected_stock_p50"],
+                        "severity": r["suggested_severity"] or "covered", "evidence": r["evidence"]} for r in proj],
     }
 
 
@@ -171,7 +177,7 @@ class DecisionBody(BaseModel):
 @app.get("/health")
 @api.get("/health")
 def health():
-    return {"ok": True, "store": "postgres" if isinstance(store, PgStore) else "memory", "live_agents": A.claude_available()}
+    return {"ok": True, "store": _store_kind(), "live_agents": A.claude_available()}
 
 
 @api.get("/state")
@@ -183,11 +189,10 @@ def state():
 def projection(component_id: str):
     if component_id not in T.COMP:
         raise HTTPException(404, f"unknown component {component_id}")
-    seen = _seen()
-    lp = dict(project(T.DB, seen, "learned")[component_id]["series"])
-    base = dict(project(T.DB, seen, "naive")[component_id]["series"])
+    cs = {k: dict(v) for k, v in T.chart_series(_seen(), component_id).items()}   # p10, p50, p90, without_memory
+    weeks = sorted(set().union(*cs.values()))
     return {"component_id": component_id, "name": T.comp_label(component_id), "launch_week": T.LAUNCH_WEEK.isoformat(),
-            "series": [{"week": w, "launchpilot": lp.get(w), "baseline": base.get(w)} for w in sorted(set(lp) | set(base))]}
+            "series": [{"week": w, **{k: v.get(w) for k, v in cs.items()}} for w in weeks]}
 
 
 @api.get("/events")
@@ -272,7 +277,7 @@ def suppliers():
     sql = store.supplier_memory_sql()
     return {"source": "sql_view" if sql else "computed",
             "suppliers": [{k: m[k] for k in ["supplier_id", "name", "announced_days", "real_mean_days", "std_days",
-                                             "prudent_days", "deliveries", "late_deliveries", "evidence"]}
+                                             "typical_days", "deliveries", "late_deliveries", "evidence"]}
                           for m in T.get_supplier_memory()],
             "sql_rows": [{k: (float(v) if hasattr(v, "is_finite") else v) for k, v in r.items()} for r in sql or []]}
 
@@ -283,7 +288,7 @@ def proof():
     if not os.path.exists(path):
         raise HTTPException(404, "no evaluation yet: run python3 evaluate.py")
     ev = json.load(open(path, encoding="utf-8"))
-    return {"evaluation": ev, "component_names": {c: T.comp_label(c) for c in ev.get("real_stockouts", {})}}
+    return {"evaluation": ev, "component_names": {c: T.comp_label(c) for c in ev.get("demo_seed", {}).get("per_component", {})}}
 
 
 @api.get("/runs")
