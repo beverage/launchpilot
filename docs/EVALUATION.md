@@ -1,6 +1,6 @@
 # Kickoff evaluation: does the evidence hold?
 
-22 October 2026, written 10:25, updated 10:50 after the team brief, section 8 added at 10:45 after Imène asked whether the test data is big enough, and updated at 12:35 and 13:00 after the C5 generator fixes. Based on the starter kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) (commit `36e494b`) and on tests run locally against regenerated copies of its data. The kit's files were not modified. The numbers reproduce with [`evaluation/sweep.py`](evaluation/sweep.py); the run behind this note is [`evaluation/sweep-2026-10-22.txt`](evaluation/sweep-2026-10-22.txt).
+22 October 2026, written 10:25, updated 10:50 after the team brief, section 8 added at 10:45 after Imène asked whether the test data is big enough, updated at 12:35 and 13:00 after the C5 generator fixes, and reviewed at 13:27. Based on the starter kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) (commit `36e494b`) and on tests run locally against regenerated copies of its data. The kit's files were not modified. The numbers reproduce with [`evaluation/sweep.py`](evaluation/sweep.py); the run behind this note is [`evaluation/sweep-2026-10-22.txt`](evaluation/sweep-2026-10-22.txt).
 
 ## Update 11:30: fixes 1 to 3 applied (task A5)
 
@@ -102,7 +102,9 @@ Left, and why:
 - **Gift box, partly fixed at 12:58.** The 14 past deliveries from Coffrets Prestige were all recorded as the 2026 Christmas box, from June 2025 onwards. They are now boxes for four past seasonal sets, by delivery date: summer 2025, Christmas 2025, Mother's Day 2026 and summer 2026. The 2026 box has no history, which is right for a new launch item, and nothing in the proof moves because the memory reads only delivery dates per supplier. What is left: those past sets have no sales in the history, so their 51,000 boxes are received and never used; `balance.py` lists them as "past season, not modelled". The full fix, after the hackathon, adds the past sets as products with history-only sales from their own random stream and zero forecasts (the projection reads a forecast for every product in the bill of materials), and rebalances the box quantities; it also gives the 2026 launch forecast a precedent the agent can cite.
 - **Calendar.** Deferred with the holiday stream (decision at 10:41); it would move every proof number.
 - **Random streams.** The probabilistic projection has one stream per supplier since A3 (decision at 12:11). The generator still has one, which matters only once the world is widened.
-- **Wider world, invoices, two years of history:** after the freeze.
+- **Wider world and two years of history:** after the freeze. Invoice-level rows are dropped (review below).
+
+Review at 13:27 (Alex, for Imène's review): the roughly 1,000 rows meant the sales history, so no invoice-level data is needed; 6,000 is a realistic minimum order for an airless-pump maker; the four past seasonal sets match how such brands run them; MAIL-004's French is approved.
 
 The rest of this section describes the data as it was at 10:45.
 
