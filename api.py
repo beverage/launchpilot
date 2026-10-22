@@ -151,11 +151,12 @@ def _process(event, live, live_rows=None, selective=False):
 
 
 def _latest_alerts():
-    out, items = [], set()
-    for a in store.list_alerts():                  # newest first: keep the latest alert per component
-        if a["item_id"] not in items:
+    out, keys = [], set()
+    for a in store.list_alerts():                  # newest first: keep the latest alert per item and risk type, as app.py
+        key = (a["item_id"], a.get("risk_type") or "stockout_component")
+        if key not in keys:
             out.append(a)
-            items.add(a["item_id"])
+            keys.add(key)
     out.sort(key=lambda a: (a["severity"] != "high", a["predicted_stockout_week"] or "9999"))
     return out
 
@@ -244,8 +245,11 @@ def projection(component_id: str):
 
 
 @api.get("/events")
-def events(limit: int = 50):
-    return [_event(e) for e in sorted(store.list_events(), key=lambda e: (e["ts"], e["event_id"]), reverse=True)[:limit]]
+def events(limit: int = 50, include_pending: bool = False):
+    """The feed, newest first: like app.py, only rows the demo clock has processed, without email-derived twins.
+    include_pending=true adds the live rows received but not analysed yet (some dated after the demo clock)."""
+    rows = [e for e in store.list_events() if (e["processed"] or include_pending) and not e["event_id"].endswith("/derived")]
+    return [_event(e) for e in sorted(rows, key=lambda e: (e["ts"], e["event_id"]), reverse=True)[:limit]]
 
 
 @api.post("/events/next")
