@@ -246,6 +246,17 @@ def sync_deliveries(store):
         apply_delivery(u["po_id"], u["actual_date"], u["delivered_qty"])
 
 
+def orders_to_demand_change(payload):
+    """A retailer's order book for the coming weeks, read against the forecast: expected over forecast units across the
+    weeks it covers, as the demand change the projection understands (a sellout_spike payload)."""
+    weeks = payload.get("weeks") or []
+    exp, fcu = sum(int(w["expected_units"]) for w in weeks), sum(int(w["forecast_units"]) for w in weeks)
+    if not weeks or not fcu:
+        return {"error": "the order book has no weeks or no forecast"}
+    return {"product_id": payload["product_id"], "channel": payload.get("channel"), "weeks_affected": [w["week"] for w in weeks],
+            "observed_vs_forecast": round(exp / fcu, 2), "expected_units": exp, "forecast_units": fcu}
+
+
 def events_seen(store):
     """What the projection engine should know: processed structured events, recorded or derived from supplier emails,
     in time order, minus rows superseded by a derived twin."""

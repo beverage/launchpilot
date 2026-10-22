@@ -4,6 +4,8 @@ LaunchPilot — live-stream corpora derived from the recorded scenario, for the 
   data/emails.jsonl      supplier emails in French (raw text, the agent must extract the facts). Four mirror a recorded
                          structured event (payload.mirrors = its id, used by the worker to avoid applying both); one is noise.
   data/deliveries.jsonl  goods receipts for the open orders that truly arrive before 22 October (from true_arrivals.json).
+  data/orders.jsonl      retailer order books for the coming weeks: expected against forecast units per week, raw numbers.
+                         Each mirrors a recorded sellout_spike (same product, weeks and ratio) and arrives that morning, before it.
 
 Each line is a Kafka message: {"event_id", "ts", "event_type", "payload"}; ts is Paris local time without offset.
 Usage: python3 generate_corpora.py [--data data]   (run after generate_data.py)
@@ -79,6 +81,19 @@ for po_id, arr in sorted(true_arrival.items(), key=lambda kv: kv[1]):
 with open(os.path.join(D, "deliveries.jsonl"), "w", encoding="utf-8") as f:
     for r in deliveries:
         f.write(json.dumps(r, ensure_ascii=False) + "\n")
-print(f"{len(emails)} emails -> {D}/emails.jsonl ; {len(deliveries)} deliveries -> {D}/deliveries.jsonl")
+# Channel order books. Weekly sell-out cannot see future weeks; a retailer's orders for its promotion or launch weeks can.
+fc = {(r["week"], r["product_id"]): int(r["qty"]) for r in csv.DictReader(open(os.path.join(D, "forecasts.csv"), encoding="utf-8"))}
+orders = []
+for e in sorted((e for e in events.values() if e["event_type"] == "sellout_spike"), key=lambda e: e["ts"]):
+    pl, ts = e["payload"], e["ts"][:10] + "T07:30:00"
+    weeks = [{"week": w, "expected_units": round(fc[(w, pl["product_id"])] * pl["observed_vs_forecast"]),
+              "forecast_units": fc[(w, pl["product_id"])]} for w in pl["weeks_affected"]]
+    orders.append({"event_id": f"ORD-{len(orders) + 1:03d}", "ts": ts, "event_type": "channel_orders",
+                   "payload": {"channel": pl["channel"], "product_id": pl["product_id"], "weeks": weeks,
+                               "source": "retailer order book", "received_at": ts, "mirrors": e["event_id"]}})
+with open(os.path.join(D, "orders.jsonl"), "w", encoding="utf-8") as f:
+    for r in orders:
+        f.write(json.dumps(r, ensure_ascii=False) + "\n")
+print(f"{len(emails)} emails -> {D}/emails.jsonl ; {len(deliveries)} deliveries -> {D}/deliveries.jsonl ; {len(orders)} order books -> {D}/orders.jsonl")
 for r in deliveries:
     print("  ", r["event_id"], r["payload"]["quantity_delivered"], "/", r["payload"]["quantity_ordered"])

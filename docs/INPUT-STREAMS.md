@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS events (
 
 Rules:
 
-- **Ids carry a prefix per producer** so the demo's reset can clear the recorded scenario without touching live rows: `EV-` recorded scenario, `MAIL-` supplier messages, `DLV-` deliveries, `BOD-` BODACC notices, `HOL-` holidays, `SELL-` sell-out. Ids must be stable across polls (derive them from the source's own id) so re-polling is idempotent with `ON CONFLICT DO NOTHING`.
+- **Ids carry a prefix per producer** so the demo's reset can clear the recorded scenario without touching live rows: `EV-` recorded scenario, `MAIL-` supplier messages, `DLV-` deliveries, `BOD-` BODACC notices, `HOL-` holidays, `ORD-` retailer order books (`SELL-` reserved for weekly sell-out). Ids must be stable across polls (derive them from the source's own id) so re-polling is idempotent with `ON CONFLICT DO NOTHING`.
 - **Timestamps** are ISO 8601 without a timezone, Paris local time, like the recorded ones, and never in the future. The demo's clock is the timestamp of the latest event the app has seen; the recorded story runs from 7 September to 22 October 2026 with the launch on 2 November, so real events dated today fit inside it.
 - **`processed`** is written by the consumer only. Producers insert `FALSE`.
 - **The demo clock** is the latest `ts` among processed events, recorded or live. Unprocessed rows never move it. The consumer processes rows in `ts` order and only those due at the current clock, so a live row dated today is analysed when the replay reaches today, as the last beat of the story. Until the consumer worker exists, the app ignores rows whose id does not start with `EV-` for both the clock and the alerts, so producers may write to the table at any time without disturbing the recorded demo.
@@ -65,6 +65,7 @@ Proposed new event types:
 | `supplier_insolvency` | `siren`, `company_name`, `activity_code`, `procedure`, `court`, `judgment_date`, `publication_date`, `notice_url`, `source`; optional `activity_label`, `procedure_family`, `city`, `region`, `supplier_id` | BODACC poller (category watch) | the agent checks exposure against the supplier master and the open orders; no match means "no exposure, monitoring" |
 | `holiday_closure` | `country`, `date`, `name`, `source`, optional `supplier_id` | holidays poller | the projection shifts open-order arrivals that fall in a closure window |
 | `sellout_weekly` | `week`, `product_id`, `channel`, `units`, `forecast_units` | replay or shop export | the agent or the engine detects the deviation and scales the forecast for the affected weeks |
+| `channel_orders` | `channel`, `product_id`, `weeks` (list of `week`, `expected_units`, `forecast_units`), `source`, `received_at`; optional `mirrors` (a recorded twin's id, never shown to the agent) | generated into `data/orders.jsonl` from the recorded spikes, published by the replay producer on `lp.channel_orders` | `tools.orders_to_demand_change` turns expected over forecast units into a demand change (a derived `sellout_spike`, id `ORD-…/derived`); the projection and the capacity check use it; a recorded twin is stored as superseded |
 
 ## Mapping real public data to a fictional brand
 

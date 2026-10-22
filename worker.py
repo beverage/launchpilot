@@ -2,7 +2,7 @@
 LaunchPilot — the consumer of live events.
 
 Live rows (ids that do not start with EV-) arrive in the events table from the Kafka bridge: supplier emails, goods receipts,
-BODACC insolvency notices, holiday closures. drain() analyses the ones due at the demo clock, oldest first, and marks them
+BODACC insolvency notices, holiday closures, retailer order books. drain() analyses the ones due at the demo clock, oldest first, and marks them
 processed. The demo clock is the latest processed timestamp, so a live row dated today is analysed when the replay reaches today.
 
 In rules mode (no API key) emails are left for the live agent, deliveries still update the memory, and insolvency notices get a
@@ -85,6 +85,25 @@ def process_live(store, row, live):
             else:
                 run = _note(store, row, f"no direct exposure: {pl.get('company_name')} ({pl.get('procedure')}) is not one of our suppliers"
                                         + (f"; same sector ({pl.get('activity_code')}) as {', '.join(same_sector)}, worth a check" if same_sector else ""))
+    elif t == "channel_orders":
+        ch = T.orders_to_demand_change(pl)
+        if "error" in ch:
+            run = _note(store, row, f"order book not read: {ch['error']}")
+        else:
+            mirrors = pl.get("mirrors")
+            duplicate = bool(mirrors and any(e["event_id"] == mirrors for e in store.list_events()))   # structured twin already applied
+            derived = {"event_id": f"{row['event_id']}/derived", "ts": row["ts"], "event_type": "sellout_spike",
+                       "payload": {"product_id": ch["product_id"], "channel": ch["channel"], "observed_vs_forecast": ch["observed_vs_forecast"],
+                                   "weeks_affected": ch["weeks_affected"], "derived_from": row["event_id"],
+                                   **({"mirrors": mirrors} if mirrors else {}), **({"superseded": True} if duplicate else {})}}
+            store.add_event(derived, processed=True)
+            head = (f"Order book: {ch['expected_units']} units of {T.comp_label(ch['product_id'])} expected against {ch['forecast_units']} "
+                    f"forecast over {len(ch['weeks_affected'])} weeks (x{ch['observed_vs_forecast']}). ")
+            if duplicate:
+                run = _note(store, row, head + f"Already applied from the structured feed ({mirrors}).")
+            else:
+                run = (A.watch_live if live else A.watch_rules)(store, derived, T.events_seen(store))
+                run["output"] = head + run["output"]
     elif t == "holiday_closure":
         n = T.sync_holidays(store)
         run = _note(store, row, f"calendar updated: {pl.get('name', 'closure')} on {pl.get('start_date') or pl.get('date')} ({pl.get('kind', 'public_holiday')}); {n} live holiday dates in the delivery calendar")
