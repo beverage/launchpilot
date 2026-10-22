@@ -1,6 +1,6 @@
 supplier_id,name,category,announced_lead_time_days,moq,unit_cost_eur,activity_code,siren
 SUP-FLA,Verrerie Lumière,flacon,42,10000,0.42,23.13Z,
-SUP-POM,Pompes Atlas,pompe,42,20000,0.18,22.29A,
+SUP-POM,Pompes Atlas,pompe,42,6000,0.18,22.29A,
 SUP-POM-B,Dosage Riviera,pompe,49,5000,0.26,22.29A,
 SUP-ETU,Cartonnages de Seine,etui,28,5000,0.09,17.21B,
 SUP-COF,Coffrets Prestige,coffret,35,3000,1.35,17.21B,706820123
