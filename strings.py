@@ -39,6 +39,16 @@ EN = {
     "mem_supplier": "Supplier", "mem_days": "Lead time (days)", "mem_measure": "Measure",
     "mem_announced": "Announced", "mem_actual": "Actual (mean)",
     "memory_sql": "**Computed live by the SQL view `supplier_reliability` in Aiven for PostgreSQL:**",
+    "glance_title": "At a glance",
+    "glance_headline": "Over {seeds} synthetic worlds LaunchPilot dates **{lp} of {total}** stockouts within a week of the truth, the planner without memory **{nm}**. "
+                       "At the hero moment the best option cuts the revenue at risk from **{risk}** to **{best}**.",
+    "glance_a_title": "Stockouts dated within one week ({seeds} worlds, {total} stockouts)",
+    "glance_a_x": "stockouts dated",
+    "glance_b_title": "Revenue at risk on 1 October, 30 ml airless pump",
+    "glance_b_x": "k€",
+    "glance_nm": "Without memory", "glance_lp": "LaunchPilot",
+    "glance_do_nothing": "Do nothing", "glance_best": "Best option",
+    "glance_caption": "Left: the recorded proof, same generator, 30 random worlds. Right: the arbitration at the partial-delivery moment of the demo scenario, deterministic tools, lost revenue plus extra cost; the best option is “{best}”.",
     "proof_title": "Does it work? Planner without memory vs LaunchPilot",
     "proof_caption": "The baseline is honest: an attentive planner who reads every message (promised dates, confirmed quantities, sell-out spikes) "
                      "but believes the announced lead times. LaunchPilot reads the same messages and adds the supplier memory. "

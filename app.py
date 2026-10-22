@@ -251,11 +251,56 @@ with tab_mem:
     else:
         st.dataframe(pd.DataFrame(mem).drop(columns=["evidence"]), hide_index=True, width="stretch")
 
+@st.cache_data
+def hero_arbitration():
+    """The arbitration at the demo's partial-delivery moment: deterministic, independent of the live demo state."""
+    i = [e["event_id"] for e in ALL].index("EV-019")
+    seen19, now19 = ALL[:i + 1], date.fromisoformat(ALL[i]["ts"][:10])
+    nothing = T.cost_scenario(seen19, now19, "CMP-POM-01", "do_nothing")
+    options = [T.cost_scenario(seen19, now19, "CMP-POM-01", k) for k in
+               ("order_alt_and_prioritize", "order_alt_supplier", "order_main_supplier", "prioritize_launch", "reduce_launch")]
+    best = min((o for o in options if "error" not in o), key=lambda o: o["total_impact_eur"])
+    return nothing["total_impact_eur"], best["total_impact_eur"], best["label"]
+
+
+def glance_bars(df, names, x_title, title, x_max=None):
+    """Two thin horizontal bars with direct labels: baseline in grey, LaunchPilot in blue, no legend."""
+    y = alt.Y("name:N", sort=names, title=None, axis=alt.Axis(labelLimit=170, labelFontSize=13, labelPadding=6))
+    x = alt.X("value:Q", title=x_title, scale=alt.Scale(domain=[0, x_max * 1.25]) if x_max else alt.Scale(domain=[0, float(df["value"].max()) * 1.3]),
+              axis=alt.Axis(grid=False, tickCount=4))
+    bars = alt.Chart(df).mark_bar(cornerRadiusEnd=4, size=22).encode(
+        y=y, x=x, color=alt.Color("name:N", scale=alt.Scale(domain=names, range=[GREY, BLUE]), legend=None),
+        tooltip=[alt.Tooltip("name:N", title="who"), alt.Tooltip("tip:N", title="value")])
+    theme = getattr(getattr(getattr(st, "context", None), "theme", None), "type", "light")
+    text = alt.Chart(df).mark_text(align="left", dx=6, fontSize=13, fontWeight="bold", color="#E8E8E8" if theme == "dark" else "#333")\
+        .encode(y=y, x=x, text="label:N")
+    return (bars + text).properties(title=alt.TitleParams(title, fontSize=13, anchor="start"), height=alt.Step(36))
+
+
 # =================== PROOF TAB ===================
 with tab_proof:
+    path = os.path.join(T.DATA, "evaluation.json")
+    if os.path.exists(path):
+        ev0 = json.load(open(path, encoding="utf-8"))
+        wm0, lp0 = ev0["without_memory"], ev0["launchpilot"]
+        risk, best_eur, best_label = hero_arbitration()
+        keur = lambda x: f"{x / 1000:,.0f} k€".replace(",", " ")
+        st.subheader(S["glance_title"])
+        st.markdown(S["glance_headline"].format(seeds=ev0["seeds"], lp=lp0["detected"], total=lp0["total"], nm=wm0["detected"], risk=keur(risk), best=keur(best_eur)))
+        g1, g2 = st.columns(2)
+        names = [S["glance_nm"], S["glance_lp"]]
+        g1.altair_chart(glance_bars(pd.DataFrame([{"name": names[0], "value": wm0["detected"], "label": f"{wm0['detected']} / {wm0['total']}", "tip": f"{wm0['detected']} of {wm0['total']} dated within one week"},
+                                                  {"name": names[1], "value": lp0["detected"], "label": f"{lp0['detected']} / {lp0['total']}", "tip": f"{lp0['detected']} of {lp0['total']} dated within one week"}]),
+                                    names, S["glance_a_x"], S["glance_a_title"].format(seeds=ev0["seeds"], total=lp0["total"]), x_max=lp0["total"]),
+                        width="stretch")
+        names_b = [S["glance_do_nothing"], S["glance_best"]]
+        g2.altair_chart(glance_bars(pd.DataFrame([{"name": names_b[0], "value": risk / 1000, "label": keur(risk), "tip": f"{keur(risk)} of revenue lost if nothing is done"},
+                                                  {"name": names_b[1], "value": best_eur / 1000, "label": f"{keur(best_eur)} ({best_eur / risk - 1:+.0%})", "tip": best_label}]),
+                                    names_b, S["glance_b_x"], S["glance_b_title"]), width="stretch")
+        st.caption(S["glance_caption"].format(best=best_label))
+        st.divider()
     st.subheader(S["proof_title"])
     st.caption(S["proof_caption"])
-    path = os.path.join(T.DATA, "evaluation.json")
     if os.path.exists(path):
         ev = json.load(open(path, encoding="utf-8"))
         wm, lp = ev["without_memory"], ev["launchpilot"]
