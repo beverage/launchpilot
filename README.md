@@ -9,6 +9,7 @@ Built at the Accel AI Innovate hackathon, Paris, 22 October 2026. Deployed on Ai
 | Path | What it holds |
 | --- | --- |
 | `app.py` | Streamlit demo: Launch, Supplier memory, Proof and Agent traces tabs |
+| `api.py`, `api.dockerfile` | HTTP API for the web frontend built in Lovable: the same store, tools and agents as `app.py`, served as JSON under `/api` |
 | `agents.py` | The watch and arbitration agents: Claude tool-use loops with a rules fallback |
 | `tools.py` | What the agents may call: projection, supplier memory, open orders, scenario costing |
 | `projection.py` | Deterministic stock projection, naive and learned modes, what-if simulations |
@@ -24,6 +25,8 @@ Built at the Accel AI Innovate hackathon, Paris, 22 October 2026. Deployed on Ai
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+The web frontend's API: `uvicorn api:app --reload --port 8000`, then open `http://localhost:8000/docs` for the endpoints. `CORS_ORIGINS` adds allowed origins beyond Lovable's domains and localhost.
 
 - With no configuration the app runs on in-memory data with rules-only agents, so the demo never breaks.
 - `DATABASE_URL` (an Aiven for PostgreSQL service URI): the app creates the tables and loads the data on first start; events, alerts, scenarios, decisions and agent traces live there.
