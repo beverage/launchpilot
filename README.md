@@ -29,6 +29,18 @@ streamlit run app.py
 - `ANTHROPIC_API_KEY`: the watch and arbitration agents run live with Claude tool use. Optional `CLAUDE_MODEL` (default `claude-sonnet-5-5`) and `ANTHROPIC_BASE_URL` to route through a gateway.
 - Demo journey: Reset, fast-forward to EV-019 (a partial pump delivery), the pump alert turns critical, Propose solutions, choose a scenario, then the memory and proof tabs. Say what is live and what is recorded.
 
+## What the proof says
+
+The baseline is honest: a planner who reads every message (new promised dates, confirmed quantities, sell-out spikes) but believes the announced lead times. LaunchPilot reads the same messages and adds the supplier memory, drawing each lead time from the supplier's delivered history and alerting when a stockout is at least 50% likely.
+
+| Over 30 synthetic worlds (`python3 evaluate.py`) | Planner without memory | LaunchPilot |
+| --- | --- | --- |
+| Stockouts dated within one week of the truth | 97 / 120 | 112 / 120 |
+| Final dates wrong by more than one week | 23 | 8 |
+| False alarms | 0 | 0 |
+
+In the demo scenario the launch-week pump stockout (week of 9 November) is flagged on 1 October, 39 days ahead, with an 82% probability; the planner without memory places it on 21 December. Doing nothing puts 571 k€ of revenue at risk; the best costed option cuts it to 194 k€. All of this is a recorded scenario on synthetic data, and the app says so on screen. Method and caveats: [docs/EVALUATION.md](docs/EVALUATION.md).
+
 ## Working in this repo
 
 - Work on short branches; merge to `main` only when the demo journey still runs.

@@ -1,58 +1,110 @@
 """
-LaunchPilot — protocole de preuve : rejoue le flux d'événements et compare
-la baseline naïve à la projection avec mémoire fournisseur.
+LaunchPilot — protocole de preuve (scénario enregistré, données synthétiques).
 
-Pour chaque composant réellement en rupture dans la fenêtre :
-  - détecté ?            (une alerte prédit une rupture à ±1 semaine de la vraie date)
-  - date de détection    (premier moment où l'alerte juste apparaît)
-  - anticipation (jours) = vraie semaine de rupture - date de détection
-Fausses alertes = composants signalés en rupture qui n'en ont pas dans la réalité.
-Valeur à risque = demande non servie du coffret si la rupture n'est pas traitée (prix x quantité).
+Baseline honnête = planificateur attentif sans mémoire : il lit chaque message (nouvelles dates promises,
+quantités confirmées, pics de ventes) mais croit les délais annoncés par les fournisseurs.
+LaunchPilot = la même lecture, plus la mémoire fournisseur (délai retenu = médiane des délais réels livrés).
 
-Usage : python evaluate.py [--data data]
+Pour N mondes synthétiques (graines 1..N, mêmes règles, tirages différents) on rejoue les 35 événements :
+  - datée      : la rupture est annoncée à ±1 semaine de sa vraie date à un moment du rejeu
+  - avance     : jours entre la première datation juste et la vraie rupture
+  - erreur     : écart (semaines) entre la date finale annoncée et la vraie date
+  - fausse alerte : rupture annoncée à la fin pour un composant qui n'en a pas en réalité
+Puis le détail du scénario de la démo (le dossier data/, graine 42), avec la probabilité finale de LaunchPilot.
+
+Usage : python evaluate.py [--seeds 30] [--data data]
 """
-import argparse, json
+import argparse, json, os, statistics, subprocess, sys, tempfile
 from datetime import date, datetime, timedelta
-from projection import load, project
+from projection import load, project, project_prob
 
-ap = argparse.ArgumentParser(); ap.add_argument("--data", default="data"); a = ap.parse_args()
-db = load(a.data)
-truth = {k: (date.fromisoformat(v) if v else None) for k, v in db["gt"]["true_stockouts"].items()}
-sim_today = date.fromisoformat(db["gt"]["sim_today"])
+HERE = os.path.dirname(os.path.abspath(__file__))
+MODES = ("without_memory", "launchpilot")
+DRAWS = 60   # tirages par point de contrôle pour la vue LaunchPilot (200 dans l'application)
 
-def run(mode):
-    detect, alarms = {}, set()
-    checkpoints = [None] + db["events"]          # état initial puis après chaque événement
-    for i, e in enumerate(checkpoints):
-        seen = db["events"][:i]
+
+def predict(db, seen, mode, draws=DRAWS):
+    """Semaine de rupture annoncée par composant, ou None. LaunchPilot annonce comme l'application alerte :
+    semaine médiane des tirages, seulement si la rupture est probable (≥ 50 %) avant fin décembre."""
+    if mode == "without_memory":
+        return {c: r["stockout_week"] for c, r in project(db, seen, mode="literal").items()}
+    return {c: (r["median_week"] if r["p_window"] >= 0.5 else None) for c, r in project_prob(db, seen, n=draws).items()}
+
+
+def score(db, mode, draws=DRAWS):
+    truth = {k: (date.fromisoformat(v) if v else None) for k, v in db["gt"]["true_stockouts"].items()}
+    sim_today = date.fromisoformat(db["gt"]["sim_today"])
+    detect = {}
+    for i, e in enumerate([None] + db["events"]):
         t = sim_today if e is None else datetime.fromisoformat(e["ts"]).date()
-        res = project(db, seen, mode=mode)
-        for cid, r in res.items():
-            if not r["stockout_week"]: continue
-            pred = date.fromisoformat(r["stockout_week"])
-            alarms.add(cid)
-            if truth.get(cid) and abs((pred - truth[cid]).days) <= 7 and cid not in detect:
+        for cid, wk in predict(db, db["events"][:i], mode, draws).items():
+            if wk and truth.get(cid) and cid not in detect and abs((date.fromisoformat(wk) - truth[cid]).days) <= 7:
                 detect[cid] = t
-    final = project(db, db["events"], mode=mode)
-    false_alarms = sorted(c for c, r in final.items() if r["stockout_week"] and not truth.get(c))
-    return detect, false_alarms, final
+    final = predict(db, db["events"], mode, draws)
+    real = [c for c, v in truth.items() if v]
+    return {"real": real, "detected": len(detect), "total": len(real),
+            "lead": {c: (truth[c] - detect[c]).days for c in detect},
+            "false_alarms": [c for c, wk in final.items() if wk and not truth.get(c)],
+            "errors_wk": {c: (date.fromisoformat(final[c]) - truth[c]).days / 7 if final[c] else None for c in real},
+            "final": final}
 
-real = sorted(c for c, v in truth.items() if v)
-report = {"real_stockouts": {c: truth[c].isoformat() for c in real}}
-print(f"Ruptures réelles dans la fenêtre : {len(real)} -> " + ", ".join(f"{c} ({truth[c]})" for c in real))
-for mode in ["naive", "learned"]:
-    detect, fa, final = run(mode)
-    lead = {c: (truth[c] - detect[c]).days for c in detect}
-    avg = sum(lead.values()) / len(lead) if lead else 0
-    print(f"\n[{mode}] détectées {len(detect)}/{len(real)} | anticipation moyenne {avg:.0f} j | fausses alertes finales {len(fa)}")
-    for c in real:
-        print(f"   {c:13s} " + (f"vue le {detect[c]} -> {lead[c]} j avant" if c in detect else "RATÉE"))
-    report[mode] = {"detected": len(detect), "total": len(real), "avg_anticipation_days": round(avg),
-                    "per_component": {c: lead.get(c) for c in real}, "false_alarms": fa}
 
-# focus démo : la pompe
-pump = project(db, db["events"], mode="learned")["CMP-POM-01"]
-report["demo_focus_pump_evidence"] = pump["evidence"]
-json.dump(report, open(f"{a.data}/evaluation.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-print("\nPreuves citées pour la pompe :"); [print("  -", x) for x in pump["evidence"]]
-print(f"\nRésultats écrits dans {a.data}/evaluation.json")
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seeds", type=int, default=30, help="nombre de mondes synthétiques (graines 1..N)")
+    ap.add_argument("--data", default=os.path.join(HERE, "data"))
+    a = ap.parse_args()
+    work = tempfile.mkdtemp(prefix="launchpilot-eval-")
+    agg = {k: {"detected": 0, "total": 0, "lead": [], "false_alarms": 0, "wrong": 0, "abs_err": []} for k in MODES}
+    for seed in range(1, a.seeds + 1):
+        out = os.path.join(work, f"s{seed}")
+        subprocess.run([sys.executable, os.path.join(HERE, "generate_data.py"), "--seed", str(seed), "--out", out],
+                       check=True, capture_output=True)
+        db = load(out)
+        for k in MODES:
+            r = score(db, k)
+            g = agg[k]
+            g["detected"] += r["detected"]; g["total"] += r["total"]
+            g["lead"] += list(r["lead"].values()); g["false_alarms"] += len(r["false_alarms"])
+            errs = [e for e in r["errors_wk"].values() if e is not None]
+            g["wrong"] += sum(1 for e in errs if abs(e) > 1) + sum(1 for e in r["errors_wk"].values() if e is None)
+            g["abs_err"] += [abs(e) for e in errs]
+    report = {"protocol": "Rejeu des 35 événements sur N mondes synthétiques ; une rupture est datée si elle est annoncée à ±1 semaine de sa vraie date ; "
+                          "baseline = planificateur attentif sans mémoire (lit chaque message, croit les délais annoncés) ; "
+                          "LaunchPilot = la même lecture plus la mémoire fournisseur (délais tirés dans l'historique réel livré ; annonce la semaine médiane quand la rupture est probable à 50 %).",
+              "seeds": a.seeds, "recorded_not_live": True}
+    for k, g in agg.items():
+        report[k] = {"detected": g["detected"], "total": g["total"],
+                     "mean_lead_days": round(statistics.mean(g["lead"])) if g["lead"] else 0,
+                     "false_alarms": g["false_alarms"], "wrong_by_more_than_1wk": g["wrong"],
+                     "median_abs_error_weeks": round(statistics.median(g["abs_err"]), 1) if g["abs_err"] else None}
+        print(f"[{k:15}] datées {g['detected']}/{g['total']} | avance moyenne {report[k]['mean_lead_days']} j | "
+              f"dates fausses (> 1 sem) {g['wrong']} | fausses alertes {g['false_alarms']} | erreur médiane {report[k]['median_abs_error_weeks']} sem")
+
+    # le scénario de la démo : le dossier data/ tel qu'il est commité
+    db = load(a.data)
+    seed = 42
+    truth = db["gt"]["true_stockouts"]
+    r = {k: score(db, k, draws=200) for k in MODES}
+    prob = project_prob(db, db["events"])
+    launch1 = (date.fromisoformat(db["gt"]["launch_week"]) + timedelta(weeks=1)).isoformat()
+    per = {}
+    for c in truth:
+        per[c] = {"truth": truth[c], "without_memory": r["without_memory"]["final"][c], "launchpilot": r["launchpilot"]["final"][c],
+                  "lead_days_without_memory": r["without_memory"]["lead"].get(c), "lead_days_launchpilot": r["launchpilot"]["lead"].get(c),
+                  "p_by_launch_plus_1wk": round(prob[c]["p_by_week"][launch1], 2), "p_before_end_of_year": round(prob[c]["p_window"], 2)}
+    report["demo_seed"] = {"seed": seed, "per_component": per}
+    pump = project(db, db["events"], mode="learned")["CMP-POM-01"]
+    report["demo_focus_pump_evidence"] = pump["evidence"]
+    print("\nScénario de la démo :")
+    for c, x in per.items():
+        if x["truth"]:
+            print(f"  {c:13} vraie {x['truth']} | sans mémoire {str(x['without_memory']):10} ({x['lead_days_without_memory']} j avant) | "
+                  f"LaunchPilot {str(x['launchpilot']):10} ({x['lead_days_launchpilot']} j avant) | P(≤ lancement+1 sem) {x['p_by_launch_plus_1wk']:.0%}")
+    with open(os.path.join(a.data, "evaluation.json"), "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    print(f"\nRésultats écrits dans {os.path.join(a.data, 'evaluation.json')}")
+
+
+if __name__ == "__main__":
+    main()

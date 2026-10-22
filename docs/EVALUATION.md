@@ -2,6 +2,14 @@
 
 22 October 2026, written 10:25, updated 10:50 after the team brief, and section 8 added at 10:45 after Imène asked whether the test data is big enough. Based on the starter kit at [ImeneMEKIDECHE/launchPilot](https://github.com/ImeneMEKIDECHE/launchPilot) (commit `36e494b`) and on tests run locally against regenerated copies of its data. The kit's files were not modified. The numbers reproduce with [`evaluation/sweep.py`](evaluation/sweep.py); the run behind this note is [`evaluation/sweep-2026-10-22.txt`](evaluation/sweep-2026-10-22.txt).
 
+## Update 11:30: fixes 1 to 3 applied (task A5)
+
+- **Fair baseline in the engine.** `projection.py` has a native `literal` mode (reads every message, believes announced lead times); it replaces the "classic spreadsheet" line on the chart, in the components table, in the tool outputs and in the agent prompts. The old `naive` mode is kept for comparison only.
+- **Calibrated memory.** The deterministic learned mode uses the median real lead time instead of mean + 1 sd, and `project_prob()` draws each lead time from the supplier's delivered history (200 draws) to give a probability of stockout per week, a median week and a p10 to p90 stock band. Alerts fire at a 50% probability; the alert's confidence is that probability.
+- **Scenario retuned.** The second pump order is 30,000 units placed on 4 September with a 14-day announced delay: on paper it lands on 30 October, before launch; the supplier's real lead time pushes it to late November. The launch-week crunch is now a pure lead-time effect, so a planner who reads the messages misses it and the memory catches it in most seeds (18 of 21), not 2 of 21.
+- **New metric and numbers** (`python3 evaluate.py`, 30 seeds, `data/evaluation.json`): dated within one week, 112 of 120 for LaunchPilot against 97 of 120 for the planner without memory; final dates wrong by more than one week, 8 against 23; false alarms, 0 and 0. Demo seed: the pump is flagged at EV-019 on 1 October, 39 days before the true week of 9 November, with an 82% probability; the baseline says 21 December. Arbitration at that point: 571 k€ at risk doing nothing, 194 k€ with the best option.
+- **Still open from the list below:** raw inputs (fix 4, task A2), live memory (fix 5, task A3), tools on PostgreSQL and a stream instead of a button (fix 6), unused tables (fix 7), labels and language (fix 8, task B1). The sections below describe the kit as it was at kickoff.
+
 ## Summary
 
 - **Keep the idea.** Real user (the supply lead of an independent cosmetics brand before a Christmas launch), real pain (packaging suppliers announce six weeks and deliver eight or nine, minimum order quantities are high, the launch date is fixed), and a complete kit: generator, deterministic projection engine, two tool-using Claude agents, PostgreSQL store, Streamlit demo, evaluation script. The recorded demo narrative works end to end, and the live agents work against the real Claude API.

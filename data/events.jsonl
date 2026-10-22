@@ -4,7 +4,7 @@
 {"event_id": "EV-029", "ts": "2026-09-12T15:00:00", "event_type": "noise", "payload": {"note": "relance qualité"}}
 {"event_id": "EV-013", "ts": "2026-09-12T17:00:00", "event_type": "capacity_drop", "payload": {"subcontractor_id": "FAC-01", "capacity_drop_rate": 0.4, "weeks_affected": ["2026-10-26", "2026-11-02"]}}
 {"event_id": "EV-008", "ts": "2026-09-14T11:00:00", "event_type": "sellout_spike", "payload": {"product_id": "PRD-COF-NOEL", "channel": "distributeur_selectif", "observed_vs_forecast": 1.3, "weeks_affected": ["2026-11-02", "2026-11-09", "2026-11-16"]}}
-{"event_id": "EV-002", "ts": "2026-09-14T17:00:00", "event_type": "supplier_delay", "payload": {"po_id": "PO-0064", "supplier_id": "SUP-POM", "component_id": "CMP-POM-01", "new_promised_date": "2026-10-19", "announced_delay_days": 7}}
+{"event_id": "EV-002", "ts": "2026-09-14T17:00:00", "event_type": "supplier_delay", "payload": {"po_id": "PO-0064", "supplier_id": "SUP-POM", "component_id": "CMP-POM-01", "new_promised_date": "2026-10-30", "announced_delay_days": 14}}
 {"event_id": "EV-017", "ts": "2026-09-17T14:00:00", "event_type": "po_confirmed", "payload": {"po_id": "PO-0066", "component_id": "CMP-FLA-50", "confirmed_date": "2026-09-28", "confirmed_qty": 20000}}
 {"event_id": "EV-014", "ts": "2026-09-18T08:00:00", "event_type": "capacity_drop", "payload": {"subcontractor_id": "FAC-02", "capacity_drop_rate": 0.5, "weeks_affected": ["2026-09-28"]}}
 {"event_id": "EV-033", "ts": "2026-09-18T11:00:00", "event_type": "noise", "payload": {"note": "inventaire tournant OK"}}

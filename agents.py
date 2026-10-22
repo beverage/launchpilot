@@ -62,15 +62,15 @@ WATCH_SYSTEM = """Tu es l'agent de veille de LaunchPilot, copilote supply d'une 
 Le coffret de Noël est mis en marché la semaine du {launch}. Un nouvel événement vient d'arriver dans le flux.
 Étapes :
 1. Classe l'événement : impact potentiel sur l'approvisionnement des composants, ou bruit. Si c'est du bruit, appelle mark_noise et arrête.
-2. Appelle run_projection. Le délai annoncé par un fournisseur ne fait JAMAIS foi : la projection LaunchPilot utilise la mémoire fournisseur (délais réels appris). Compare avec la vue « Excel naïf » pour expliquer l'écart.
-3. Pour chaque composant dont la rupture LaunchPilot est nouvelle, ou plus tôt qu'une alerte déjà existante, appelle create_alert. Gravité high si rupture au plus tard une semaine après le lancement, sinon medium. Confiance entre 0 et 1.
+2. Appelle run_projection. Le délai annoncé par un fournisseur ne fait JAMAIS foi : LaunchPilot tire chaque délai dans l'historique réel livré du fournisseur et renvoie une probabilité de rupture (semaine médiane, probabilité avant le lancement + 1 semaine, probabilité avant fin décembre). Compare avec la vue « sans mémoire » : un planificateur attentif qui lit les mêmes messages mais croit les délais annoncés. Explique l'écart par la mémoire fournisseur.
+3. Pour chaque composant dont suggested_severity vaut high ou medium et dont la rupture est nouvelle, ou plus tôt qu'une alerte déjà ouverte, appelle create_alert avec la semaine médiane. Gravité = suggested_severity (high : probabilité ≥ 50 % de rupture au plus tard une semaine après le lancement ; medium : rupture probable avant fin décembre). Confiance = le champ confidence renvoyé (une probabilité), jamais un chiffre inventé.
 4. L'explication fait 2 phrases maximum, en français, et cite les preuves au format table:id présentes dans les sorties d'outils.
 5. Si rien ne change, appelle no_new_risk.
 Interdits : inventer un chiffre absent des outils, créer une alerte sans preuve, répéter une alerte identique.
 Termine par une phrase de synthèse."""
 
 WATCH_TOOLS = [
-    {"name": "run_projection", "description": "Projette le stock de chaque composant jusqu'à fin décembre, en mode LaunchPilot (mémoire fournisseur) et en mode Excel naïf. Renvoie semaine de rupture, stock mini, gravité suggérée, preuves.",
+    {"name": "run_projection", "description": "Projette le stock de chaque composant jusqu'à fin décembre : vue LaunchPilot (mémoire fournisseur, 200 tirages des délais réels : semaine médiane de rupture, probabilité avant le lancement + 1 semaine, probabilité avant fin décembre) et vue sans mémoire (délais annoncés, messages lus). Renvoie aussi la gravité suggérée, la confiance (probabilité) et les preuves.",
      "input_schema": {"type": "object", "properties": {"component_ids": {"type": "array", "items": {"type": "string"}, "description": "Optionnel : limiter à ces composants"}}}},
     {"name": "get_supplier_memory", "description": "Fiabilité réelle d'un fournisseur apprise sur l'historique des livraisons (délai annoncé vs réel, écart-type, retards).",
      "input_schema": {"type": "object", "properties": {"supplier_id": {"type": "string"}}}},
@@ -138,16 +138,19 @@ def watch_rules(store, event, events_seen):
     if event["event_type"] != "noise":
         for r in T.run_projection(events_seen):
             wk = r["stockout_week_launchpilot"]
-            if not wk or not _should_alert(store, r["component_id"], wk):
+            if not wk or not r["suggested_severity"] or not _should_alert(store, r["component_id"], wk):
                 continue
             m = T.get_supplier_memory(r["supplier_id"])[0]
-            naive = r["stockout_week_naive_excel"]
-            txt = (f"Rupture de {r['name']} prévue semaine du {wk}"
-                   + (f" (l'Excel naïf ne la voit pas)." if not naive else f" (l'Excel naïf la voit le {naive}).")
-                   + f" {m['name']} annonce {m['announced_days']} j mais livre en {m['real_mean_days']} j en moyenne sur {m['deliveries']} livraisons.")
+            without = r["stockout_week_without_memory"]
+            txt = (f"Rupture de {r['name']} probable semaine du {wk} (probabilité {r['p_stockout_by_launch_plus_1wk']:.0%} avant le lancement + 1 semaine, "
+                   f"{r['p_stockout_before_end_of_year']:.0%} avant fin décembre)"
+                   + (" ; sans mémoire fournisseur, un planificateur qui lit les mêmes messages ne voit aucune rupture." if not without
+                      else " ; un planificateur sans mémoire la voit aussi, la mémoire ne change rien ici." if without == wk
+                      else f" ; sans mémoire fournisseur, il ne la verrait que le {without}.")
+                   + f" {m['name']} annonce {m['announced_days']} j mais livre en {m['real_mean_days']} j en moyenne sur {m['deliveries']} livraisons (délai retenu {m['typical_days']} j).")
             aid = store.add_alert({"source": "règles (avance rapide)", "trigger_event_id": event["event_id"],
                                    "item_id": r["component_id"], "predicted_stockout_week": wk,
-                                   "severity": r["suggested_severity"], "confidence": 0.7, "explanation": txt,
+                                   "severity": r["suggested_severity"], "confidence": r["confidence"], "explanation": txt,
                                    "evidence": r["evidence"]})
             created.append(aid)
     run = {"agent": "veille", "mode": "règles", "input": event["event_id"], "tool_calls": [], "output": f"{len(created)} alerte(s)",

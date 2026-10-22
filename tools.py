@@ -3,7 +3,7 @@ Outils métier de LaunchPilot : ce que les agents ont le droit d'appeler.
 Tous les calculs sont déterministes (projection.py) ; les agents décident quoi calculer et expliquent.
 """
 from datetime import date, timedelta
-from projection import load, project, supplier_memory, _d, monday
+from projection import load, project, project_prob, supplier_memory, _d, monday
 import os
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -43,7 +43,7 @@ def get_supplier_memory(supplier_id=None):
             continue
         m = MEM[sid]
         out.append({"supplier_id": sid, "name": SUP[sid]["name"], "announced_days": m["announced"],
-                    "real_mean_days": m["real_mean"], "std_days": m["std"], "prudent_days": m["prudent"],
+                    "real_mean_days": m["real_mean"], "std_days": m["std"], "typical_days": m["typical"],
                     "deliveries": m["n"], "late_deliveries": len(m["late_po_ids"]),
                     "evidence": f"supplier_reliability:{sid}"})
     return out
@@ -54,24 +54,39 @@ def get_open_pos(component_id):
             for p in DB["purchase_orders"] if p["status"] == "open" and p["component_id"] == component_id]
 
 
+LAUNCH_PLUS_1 = (LAUNCH_WEEK + timedelta(weeks=1)).isoformat()
+
+
 def run_projection(events_seen, component_ids=None):
+    """Vue LaunchPilot (mémoire fournisseur, probabiliste) et vue sans mémoire : le planificateur attentif
+    qui lit tous les messages mais croit les délais annoncés."""
     learned = project(DB, events_seen, "learned")
-    naive = project(DB, events_seen, "naive")
+    literal = project(DB, events_seen, "literal")
+    prob = project_prob(DB, events_seen)
     ids = component_ids or list(learned)
     out = []
     for cid in ids:
         if cid not in learned:
             continue
-        l, n = learned[cid], naive[cid]
-        wk = l["stockout_week"]
-        sev = None
-        if wk:
-            sev = "high" if _d(wk) <= LAUNCH_WEEK + timedelta(weeks=1) else "medium"
+        l, b, p = learned[cid], literal[cid], prob[cid]
+        p_launch = p["p_by_week"][LAUNCH_PLUS_1]
+        sev = "high" if p_launch >= 0.5 else ("medium" if p["p_window"] >= 0.5 else None)
         out.append({"component_id": cid, "name": comp_label(cid), "supplier_id": supplier_of(cid),
-                    "stockout_week_launchpilot": wk, "stockout_week_naive_excel": n["stockout_week"],
-                    "min_projected_stock": l["min_stock"], "suggested_severity": sev,
+                    "stockout_week_launchpilot": p["median_week"],
+                    "p_stockout_by_launch_plus_1wk": round(p_launch, 2),
+                    "p_stockout_before_end_of_year": round(p["p_window"], 2),
+                    "stockout_week_without_memory": b["stockout_week"],
+                    "min_projected_stock_p50": p["min_stock_p50"], "suggested_severity": sev,
+                    "confidence": round(p_launch if sev == "high" else p["p_window"], 2),
                     "evidence": [e for e in l["evidence"] if not e.startswith("events:sellout_spike PRD-SER") or cid in ("CMP-POM-01", "CMP-FLA-30", "CMP-ETU-01")][:12]})
     return out
+
+
+def chart_series(events_seen, component_id):
+    """Pour le graphique : bande p10 / p50 / p90 de LaunchPilot et trajectoire du planificateur sans mémoire."""
+    p = project_prob(DB, events_seen)[component_id]
+    return {"p10": p["p10"], "p50": p["p50"], "p90": p["p90"],
+            "without_memory": project(DB, events_seen, "literal")[component_id]["series"]}
 
 
 def _consumers(cid):
@@ -122,7 +137,7 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
         s, m = SUP[sid], MEM[sid]
         q = int(qty or max(shortage, int(s["moq"])))
         q = max(q, int(s["moq"]))
-        arrival = now + timedelta(days=m["prudent"])
+        arrival = now + timedelta(days=m["typical"])
         sim = project(DB, events_seen, "learned", extra_pos=[{"component_id": component_id, "qty": q, "arrival": arrival,
                                                              "supplier_id": sid, "label": f"commande urgente {s['name']}"}])[component_id]
         left = unserved_units(component_id, sim["series"])
@@ -130,12 +145,12 @@ def cost_scenario(events_seen, now, component_id, kind, qty=None, reduction_pct=
         main_cost = float(SUP[COMP[component_id]["main_supplier_id"]]["unit_cost_eur"])
         cost = q * max(0.0, float(s["unit_cost_eur"]) - main_cost)   # surcoût vs fournisseur habituel
         nxt_neg = next((w for w, b in base["series"] if b < 0 and _d(w) >= monday(arrival)), None)
-        margin = (_d(nxt_neg) - arrival).days if nxt_neg else None
+        margin = max(0, (_d(nxt_neg) - arrival).days) if nxt_neg else None   # 0 = la commande arrive la semaine même où le stock casse
         res.update(label=f"Commande urgente chez {s['name']}", supplier_id=sid, qty=q, safety_margin_days=margin,
                    arrival_realistic=arrival.isoformat(), announced_arrival=(now + timedelta(days=m["announced"])).isoformat(),
                    cost_eur=round(cost), stock_value_eur=round(purchase), lost_revenue_eur=round(left * avg_price),
                    shortage_units_after=left, new_stockout_week=sim["stockout_week"],
-                   detail=f"{q} u. × {float(s['unit_cost_eur']):.2f} € (MOQ {s['moq']}), arrivée réaliste {arrival} (délai prudent {m['prudent']} j, annoncé {m['announced']} j)"
+                   detail=f"{q} u. × {float(s['unit_cost_eur']):.2f} € (MOQ {s['moq']}), arrivée réaliste {arrival} (délai retenu {m['typical']} j = médiane réelle, annoncé {m['announced']} j)"
                           + (f", marge avant la rupture suivante : {margin} j" if margin is not None else "")
                           + f". Ne couvre pas le trou de {left} unités avant l'arrivée." * (left > 0))
         res["evidence_rows"].append(f"supplier_reliability:{sid}")

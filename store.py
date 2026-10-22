@@ -13,6 +13,16 @@ BASE_TABLES = ["suppliers", "components", "products", "bom", "subcontractors",
                "sales_history", "forecasts", "inventory", "purchase_orders"]
 
 
+def dataset_version():
+    """Empreinte courte des fichiers de data/ chargés dans PostgreSQL."""
+    import hashlib
+    h = hashlib.sha256()
+    for t in BASE_TABLES + ["events"]:
+        name = f"{t}.csv" if t != "events" else "events.jsonl"
+        h.update(open(os.path.join(DATA, name), "rb").read())
+    return h.hexdigest()[:12]
+
+
 def _jsonable(x):
     if isinstance(x, (datetime,)):
         return x.isoformat()
@@ -103,17 +113,23 @@ class PgStore(MemStore):
                 self._connect()
 
     def _bootstrap(self):
-        exists = self._q("SELECT to_regclass('public.suppliers') AS t")[0]["t"]
-        if not exists:
-            self._q(open(os.path.join(HERE, "schema.sql"), encoding="utf-8").read(), fetch=False)
-        if self._q("SELECT COUNT(*) AS n FROM suppliers")[0]["n"] == 0:
-            with self.conn.cursor() as cur:
-                for t in BASE_TABLES:
-                    path = os.path.join(DATA, f"{t}.csv")
-                    with open(path, encoding="utf-8") as f:
-                        header = next(csv.reader(f))
-                    with cur.copy(f"COPY {t} ({','.join(header)}) FROM STDIN WITH (FORMAT csv, HEADER true, NULL '')") as cp:
-                        cp.write(open(path, "rb").read())
+        """Crée le schéma (idempotent) et charge les CSV de data/ ; les recharge quand leur empreinte change."""
+        self._q(open(os.path.join(HERE, "schema.sql"), encoding="utf-8").read(), fetch=False)
+        version = dataset_version()
+        stored = self._q("SELECT value FROM app_meta WHERE key = 'dataset_version'")
+        if self._q("SELECT COUNT(*) AS n FROM suppliers")[0]["n"] and stored and stored[0]["value"] == version:
+            return
+        self._q("TRUNCATE " + ", ".join(BASE_TABLES) + " CASCADE", fetch=False)
+        with self.conn.cursor() as cur:
+            for t in BASE_TABLES:
+                path = os.path.join(DATA, f"{t}.csv")
+                with open(path, encoding="utf-8") as f:
+                    header = next(csv.reader(f))
+                with cur.copy(f"COPY {t} ({','.join(header)}) FROM STDIN WITH (FORMAT csv, HEADER true, NULL '')") as cp:
+                    cp.write(open(path, "rb").read())
+        self.reset()   # le scénario enregistré et les sorties des agents se rapportaient à l'ancien jeu de données
+        self._q("INSERT INTO app_meta (key, value) VALUES ('dataset_version', %s) "
+                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (version,), fetch=False)
 
     def reset(self):
         """Clears the recorded scenario (EV- ids) and the agents' outputs. Live events from the pollers survive and are re-queued."""

@@ -1,33 +1,81 @@
 {
-  "real_stockouts": {
-    "CMP-COF-NOEL": "2026-12-14",
-    "CMP-FLA-30": "2026-12-21",
-    "CMP-FLA-50": "2026-12-14",
-    "CMP-POM-01": "2026-11-09"
+  "protocol": "Rejeu des 35 événements sur N mondes synthétiques ; une rupture est datée si elle est annoncée à ±1 semaine de sa vraie date ; baseline = planificateur attentif sans mémoire (lit chaque message, croit les délais annoncés) ; LaunchPilot = la même lecture plus la mémoire fournisseur (délais tirés dans l'historique réel livré ; annonce la semaine médiane quand la rupture est probable à 50 %).",
+  "seeds": 30,
+  "recorded_not_live": true,
+  "without_memory": {
+    "detected": 97,
+    "total": 120,
+    "mean_lead_days": 95,
+    "false_alarms": 0,
+    "wrong_by_more_than_1wk": 23,
+    "median_abs_error_weeks": 0.0
   },
-  "naive": {
-    "detected": 1,
-    "total": 4,
-    "avg_anticipation_days": 98,
-    "per_component": {
-      "CMP-COF-NOEL": null,
-      "CMP-FLA-30": null,
-      "CMP-FLA-50": 98,
-      "CMP-POM-01": null
-    },
-    "false_alarms": []
+  "launchpilot": {
+    "detected": 112,
+    "total": 120,
+    "mean_lead_days": 86,
+    "false_alarms": 0,
+    "wrong_by_more_than_1wk": 8,
+    "median_abs_error_weeks": 0.0
   },
-  "learned": {
-    "detected": 4,
-    "total": 4,
-    "avg_anticipation_days": 82,
+  "demo_seed": {
+    "seed": 42,
     "per_component": {
-      "CMP-COF-NOEL": 91,
-      "CMP-FLA-30": 98,
-      "CMP-FLA-50": 98,
-      "CMP-POM-01": 39
-    },
-    "false_alarms": []
+      "CMP-FLA-30": {
+        "truth": "2026-12-21",
+        "without_memory": "2026-12-21",
+        "launchpilot": "2026-12-21",
+        "lead_days_without_memory": 98,
+        "lead_days_launchpilot": 98,
+        "p_by_launch_plus_1wk": 0.0,
+        "p_before_end_of_year": 1.0
+      },
+      "CMP-FLA-50": {
+        "truth": "2026-12-14",
+        "without_memory": "2026-12-14",
+        "launchpilot": "2026-12-14",
+        "lead_days_without_memory": 98,
+        "lead_days_launchpilot": 98,
+        "p_by_launch_plus_1wk": 0.0,
+        "p_before_end_of_year": 1.0
+      },
+      "CMP-POM-01": {
+        "truth": "2026-11-09",
+        "without_memory": "2026-12-21",
+        "launchpilot": "2026-11-09",
+        "lead_days_without_memory": null,
+        "lead_days_launchpilot": 39,
+        "p_by_launch_plus_1wk": 0.82,
+        "p_before_end_of_year": 1.0
+      },
+      "CMP-ETU-01": {
+        "truth": null,
+        "without_memory": null,
+        "launchpilot": null,
+        "lead_days_without_memory": null,
+        "lead_days_launchpilot": null,
+        "p_by_launch_plus_1wk": 0.0,
+        "p_before_end_of_year": 0.0
+      },
+      "CMP-ETU-02": {
+        "truth": null,
+        "without_memory": null,
+        "launchpilot": null,
+        "lead_days_without_memory": null,
+        "lead_days_launchpilot": null,
+        "p_by_launch_plus_1wk": 0.0,
+        "p_before_end_of_year": 0.0
+      },
+      "CMP-COF-NOEL": {
+        "truth": "2026-12-14",
+        "without_memory": "2026-12-14",
+        "launchpilot": "2026-12-14",
+        "lead_days_without_memory": 91,
+        "lead_days_launchpilot": 91,
+        "p_by_launch_plus_1wk": 0.1,
+        "p_before_end_of_year": 1.0
+      }
+    }
   },
   "demo_focus_pump_evidence": [
     "events:EV-001",
@@ -41,6 +89,6 @@
     "inventory:CMP-POM-01",
     "purchase_orders:PO-0063",
     "purchase_orders:PO-0064",
-    "supplier_reliability:SUP-POM (annoncé 42 j, réel 60.3 ± 7.1 j sur 14 livraisons, délai prudent 67 j)"
+    "supplier_reliability:SUP-POM (annoncé 42 j, réel 60.3 ± 7.1 j sur 14 livraisons, délai retenu 60 j)"
   ]
 }
