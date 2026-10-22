@@ -14,7 +14,8 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ingest import bridge
-from ingest.sink import Sink, paris_now
+from ingest.sink import Sink, paris_now, pg_connect
+from ingest.views import ensure_views
 from streams import bodacc
 
 PORT = int(os.environ.get("PORT", 8080))
@@ -47,6 +48,18 @@ def bridge_loop():
             time.sleep(10)
 
 
+def refresh_views():
+    """Recreates the read-only views for the front ends; logs instead of failing."""
+    try:
+        conn = pg_connect()
+        try:
+            ensure_views(conn)
+        finally:
+            conn.close()
+    except Exception:
+        record_error("views")
+
+
 def bodacc_loop():
     while True:
         sink = Sink()
@@ -59,6 +72,7 @@ def bodacc_loop():
             state["bodacc"]["emitted_total"] += sent
         except Exception:
             record_error("bodacc")
+        refresh_views()
         finally:
             sink.close()
         time.sleep(BODACC_EVERY_MIN * 60)
@@ -81,6 +95,7 @@ class Health(BaseHTTPRequestHandler):
 
 
 def main():
+    refresh_views()
     if os.environ.get("KAFKA_BOOTSTRAP_SERVERS"):
         threading.Thread(target=bridge_loop, daemon=True).start()
     threading.Thread(target=bodacc_loop, daemon=True).start()
