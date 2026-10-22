@@ -305,6 +305,20 @@ def proof():
     return {"evaluation": ev, "component_names": {c: T.comp_label(c) for c in ev.get("demo_seed", {}).get("per_component", {})}}
 
 
+@api.get("/supplier-health")
+def supplier_health(include_unreached: bool = False):
+    """Real BODACC notices with their registry card and our exposure, from the supplier_health view (streams side).
+    By default only the notices the demo clock has reached; include_unreached=true lists every notice received."""
+    if not isinstance(store, PgStore):
+        return {"source": "unavailable", "error": "needs Aiven for PostgreSQL", "notices": []}
+    try:
+        rows = store._q("SELECT * FROM supplier_health" + ("" if include_unreached else " WHERE reached_by_demo")
+                        + " ORDER BY published_at DESC")
+    except Exception as ex:                       # the view lives on main's schema; never break the page over it
+        return {"source": "unavailable", "error": str(ex)[:200], "notices": []}
+    return {"source": "sql_view", "error": None, "notices": rows or []}
+
+
 @api.get("/runs")
 def runs():
     return [_run(r) for r in reversed(RUNS)]
