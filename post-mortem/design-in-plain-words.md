@@ -2,7 +2,7 @@
 
 22 October 2026 · Alex Beverage
 
-> A snapshot written at midday on the hackathon day, kept as it was. Some numbers changed that afternoon: the final ones are in the [postmortem](postmortem.md).
+> A snapshot from around 13:00 on the hackathon day, kept as it was. The headline numbers changed at 14:30: the final ones are in the [postmortem](postmortem.md).
 
 LaunchPilot warns a cosmetics brand weeks ahead that a packaging part will run out before a product launch. It explains why, and prices the ways out in euros. This page skips the technical detail; the [technical design](design-technical.md) has it.
 

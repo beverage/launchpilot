@@ -1,6 +1,8 @@
-# LaunchPilot design
+# LaunchPilot technical design
 
-2026-10-22 · Alex Beverage
+22 October 2026 · Alex Beverage
+
+> A snapshot from around 13:00 on the hackathon day, kept as it was. The headline numbers changed at 14:30: the final ones are in the [postmortem](postmortem.md). The [plain-words version](design-in-plain-words.md) skips the technical detail.
 
 ## Status of this document
 

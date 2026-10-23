@@ -32,7 +32,7 @@ I spent the three days before the event (19 to 21 October) on setup that would w
 | A close reading of the brief, written down: the agent must fail without its data, deploying on Aiven is required, design and first users are judged | Kept in a one-page brief | Gave every session the same yardstick, and is why the flattering comparison was caught at 10:55 |
 | My own idea, a supplier watchdog for payment runs, plus five questions for judging other teams' ideas | A pitch skeleton and a filter that fit on one page | I could say yes to LaunchPilot quickly, and the watchdog's data sources (French insolvency notices and company records) became LaunchPilot's real-data feed |
 | Accounts on the required platform: a database, credits claimed, and Aiven's tools connected to Claude Code | Claude Code ran a real query on our database | Sessions could inspect live data from the first minute |
-| A starter app (health check, database check, a Claude call) and a deploy script for Aiven's hosting | The full round trip passed locally against the real database | The app was live at 10:47; the same script deployed five apps that day |
+| A starter app (health check, database check, a Claude call) and a deploy script for Aiven's hosting | The full round trip passed locally against the real database | The app was live at 10:47, and the same script handled its redeploys all day |
 | Platform notes: every command, quirk and trap found while setting up | One file, with a deploy runbook at the top | Sessions read the notes instead of rediscovering traps, and added new ones as they hit them |
 | One secrets file for the whole workspace, linked into each repo and never committed | Every repo reads keys from it | No key reached a public repo all day |
 | A phone-friendly arrival checklist: credits in order, questions for the hosts, the deploy steps | Readable on a phone at 08:00 | Kept logins out of the first hour, which belonged to forming the team |
@@ -53,8 +53,8 @@ I ran four long-lived sessions, one per area of the work, and about ten short on
 
 | Session | What it owned | What it produced |
 | --- | --- | --- |
-| App | The agents, the forecasting engine, the data generator, the proof | The fair comparison, live email reading, the cost panel, the date fix |
-| Streams | Data coming in and every deploy on Aiven | The Kafka pipeline, the court-notice watch, company records, the AI gateway |
+| Kickoff (the app) | The agents, the forecasting engine, the data generator, the proof | The fair comparison, live email reading, the cost panel, the date fix |
+| Prep (data streams) | Data coming in and every deploy on Aiven | The Kafka pipeline, the court-notice watch, company records, the AI gateway |
 | Test data | Making the made-up brand hold together | Rebalanced purchase history, retailer order books, the pitch script |
 | Front end | The API between Lovable and the live data | Live data in the Lovable preview, the supplier-health screen |
 
@@ -74,7 +74,7 @@ The whole of [`AGENTS.md`](../AGENTS.md) fits on one screen. Its rules:
 
 - **Every task had a "done when".** "Proof tab shows the fair comparison; README numbers replaced" can be checked; "improve the proof" cannot.
 - **Priorities and a cut order up front.** Must, Should or Nice on every task, and a written list of what to cut first if time ran short.
-- **One contract between sessions working in parallel.** The streams session wrote the data feeds and the app session read them, both working from one page of field names that the log names as the single source of truth.
+- **One contract between sessions working in parallel.** The prep session wrote the data feeds and the kickoff session read them, both working from one page of field names that the log names as the single source of truth.
 - **A reason with every decision I made,** so a session that later wondered why could find it in the log instead of reopening it.
 
 ### How I checked them
@@ -108,7 +108,7 @@ Every stumble below was a piloting problem, not a coding one: work that was righ
 
 | What happened | What it cost | What I would do next time |
 | --- | --- | --- |
-| The app session changed the headline numbers at 14:30; the slide image committed at 14:51 still had the old ones | Until 16:54 the slide we submitted showed numbers we had already replaced | One file holds the numbers, every slide and document reads from it, and a number change triggers a board task listing everything to refresh |
+| The kickoff session changed the headline numbers at 14:30; the slide image committed at 14:51 still had the old ones | Until 16:54 the slide we submitted showed numbers we had already replaced | One file holds the numbers, every slide and document reads from it, and a number change triggers a board task listing everything to refresh |
 | Every session and both front ends shared one database | A newly started API reset the demo twice around lunch, and a session's click landed in my own demo run | A database per working area; sessions only read the demo database |
 | Outputs multiplied: two decks, a design doc frozen at 13:00, submission drafts in a fourth place | Stale versions sat beside current ones, and I had to find out which was which after the event | One owner per output, and superseded versions archived the moment they are replaced |
 | I reopened the freeze after 14:00 to add more catches to the demo | Building ran past the planned 15:00 freeze, and one of the new catches was cut again at 15:03 | Reopening the freeze is a logged decision that names an equal cut |

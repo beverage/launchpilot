@@ -10,7 +10,7 @@ Three things carried the day:
 
 - **We chose a fair test over a flattering one.** Our first comparison was against a spreadsheet nobody would defend. We swapped it for an attentive human planner, and still won 118 to 92 out of 120 predictions.
 - **One rulebook let many workers run at once.** Each AI session owned its own folders, wrote every decision in one shared log, and claimed tasks on one shared board. Nobody overwrote anybody.
-- **Nothing on stage could break the demo.** If the AI, the database or the live data feeds go down, the app falls back to rules and recorded data, and says so on screen.
+- **Nothing on stage could break the demo.** If the AI, the database or the data feeds go down, the app falls back to rules and recorded data, and says so on screen.
 
 ## Everything from the day
 
@@ -51,7 +51,7 @@ The submission carries a three-minute demo video, one pitch slide and the public
 5. **The memory learns.** A late pump delivery lands during the demo, and the supplier's real lead time visibly moves from 62 to 63 days.
 6. **Real data.** A real court notice puts a cardboard-box maker into receivership. Mapped, with a label, to our fictional gift-box supplier, it shows about 1.07 M€ more at risk if that supplier's open order doesn't arrive.
 7. **Proof.** Across 30 randomly generated test worlds, LaunchPilot dates 118 of 120 stockouts within a week; the careful planner dates 92. Cost and speed per event are on screen.
-8. **Live and recorded.** We say out loud what runs live (the AI agents, the data feeds, the court notices) and what we built ourselves (the brand and its history).
+8. **Live and recorded.** We say out loud what runs live (the AI agents and the court notices) and what we built ourselves and replay (the brand, its history, its emails and deliveries).
 
 There are two ways to see it: the original app Imène's kit came with, and a new web front end the team designed in Lovable. Both read the same live database.
 
@@ -72,7 +72,7 @@ The app was live on Aiven by 10:47, under two hours after kickoff; everything af
 | 11:34 | Every AI call now goes through our own gateway on Aiven, which logs what each one costs. |
 | 11:41 | Screens and agent switch to English; supplier emails and court notices stay in French. |
 | 12:16 | The agent reads supplier emails live, and each delivery teaches the supplier memory. |
-| 12:30 | Three live data feeds flow end to end. |
+| 12:30 | Three data feeds flow end to end through Kafka: real court notices, plus replayed emails and deliveries. |
 | 12:39 | A real court notice is mapped, with a label, to our fictional gift-box supplier. |
 | 13:28 | Proof chart and cost-per-event panel go live. |
 | 13:40 | The submission form arrives: the video is required, and the slide is all a finalist shows on stage. |
@@ -128,7 +128,7 @@ One more rule: the live app had to work after every change. Risky work happened 
 - **An honest proof.** The prototype compared LaunchPilot with a spreadsheet nobody reads. Tested fairly, a planner who reads every email scored better than LaunchPilot did. By 11:08 we had rebuilt the test against that careful planner and made the supplier memory plan with each supplier's typical delay and a likelihood. It now wins fairly, 118 against 92 out of 120.
 - **Integrity under time pressure.** Twice we gave up a better-looking result. A date fix at 14:30 raised the best option's risk from 194 k€ to 437 k€, and we kept the honest number. At 15:03 we dropped a capacity catch because we had set the numbers to make it happen.
 - **Real public data, handled with care.** The court notices are real, but we show no names of people, never say anything about the real company's delivery times, and label the link to our fictional supplier everywhere.
-- **Sponsor fit that does real work.** Five apps run on Aiven's hosting, data lives in its database, live feeds flow through its streaming service, and every AI call passes through a gateway on Aiven that logs its cost.
+- **Sponsor fit that does real work.** Five apps run on Aiven's hosting, data lives in its database, data feeds flow through its streaming service, and every AI call passes through a gateway on Aiven that logs its cost.
 - **Design and code in parallel.** Lovable showed live data from 13:39, so design choices were made against the real numbers, not placeholders.
 
 ## What was hard and what broke
